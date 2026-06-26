@@ -1,0 +1,19 @@
+{
+  "name": "makevibecode-arcade",
+  "version": "1.0.0",
+  "description": "AI-powered MakeCode Arcade wrapper with vibe coding support",
+  "main": "main.js",
+  "scripts": {
+    "start": "node launch.js",
+    "dev": "node launch.js --dev"
+  },
+  "keywords": [],
+  "author": "PGH Networks",
+  "license": "MIT",
+  "dependencies": {
+    "electron": "^34.5.8"
+  },
+  "allowScripts": {
+    "electron@34.5.8": true
+  }
+}

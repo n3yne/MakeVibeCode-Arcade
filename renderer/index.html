@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MakeVibeCode Arcade</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Toolbar -->
+    <div id="toolbar">
+      <div id="toolbar-left">
+        <div id="logo">
+          <span class="logo-icon">🕹️</span>
+          <span class="logo-text">MakeVibeCode Arcade</span>
+        </div>
+      </div>
+      <div id="toolbar-right">
+        <button id="btn-toggle-panel" class="toolbar-btn" title="Toggle AI Panel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="15" y1="3" x2="15" y2="21"/>
+          </svg>
+        </button>
+        <button id="btn-settings" class="toolbar-btn" title="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main content area -->
+    <div id="content">
+      <!-- MakeCode Arcade webview -->
+      <div id="arcade-container">
+        <webview
+          id="arcade-webview"
+          src="https://arcade.makecode.com"
+          allowpopups
+          webpreferences="contextIsolation=false, nodeIntegration=false"
+        ></webview>
+      </div>
+
+      <!-- Resizer -->
+      <div id="resizer"></div>
+
+      <!-- AI Chat Panel -->
+      <div id="ai-panel">
+        <!-- Conversation selector -->
+        <div id="conversation-bar">
+          <select id="conv-select" title="Switch conversation"></select>
+          <input id="conv-rename-input" class="hidden" type="text" placeholder="Conversation name…">
+          <button type="button" id="btn-new-conv" class="icon-btn" title="New conversation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button type="button" id="btn-rename-conv" class="icon-btn" title="Rename conversation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button type="button" id="btn-delete-conv" class="icon-btn" title="Delete conversation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>
+        </div>
+
+        <div id="panel-header">
+          <span class="panel-title">AI Assistant</span>
+          <div class="panel-header-actions">
+            <button id="btn-get-code" class="small-btn" title="Fetch current code from editor">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+              </svg>
+              Get Code
+            </button>
+            <button id="btn-clear-chat" class="small-btn" title="Clear conversation">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+              </svg>
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Code context indicator -->
+        <div id="code-context-bar" class="hidden">
+          <span class="context-icon">📎</span>
+          <span id="context-label">Code attached</span>
+          <button id="btn-remove-context" class="icon-btn" title="Remove code context">×</button>
+        </div>
+
+        <!-- Messages -->
+        <div id="messages"></div>
+
+        <!-- Input area -->
+        <div id="input-area">
+          <textarea
+            id="user-input"
+            placeholder="Ask me to help with your game code..."
+            rows="3"
+          ></textarea>
+          <div id="input-actions">
+            <button id="btn-send" class="send-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Settings</h2>
+        <button id="btn-close-settings" class="icon-btn large">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label>AI Provider</label>
+          <select id="setting-provider">
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI (GPT)</option>
+            <option value="google">Google (Gemini)</option>
+            <option value="openrouter">OpenRouter</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label>API Key</label>
+          <input type="password" id="setting-apikey" placeholder="Enter your API key...">
+        </div>
+        <div class="setting-group">
+          <label>Model</label>
+          <input type="text" id="setting-model" placeholder="Leave blank for default">
+          <small id="model-hint" class="hint"></small>
+        </div>
+        <div class="setting-group">
+          <label>System Prompt</label>
+          <textarea id="setting-system-prompt" rows="6" placeholder="Custom instructions for the AI..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-save-settings" class="primary-btn">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
