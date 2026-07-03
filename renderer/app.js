@@ -1,9 +1,11 @@
 // MakeVibeCode Arcade - AI Chat Panel Logic
 
-const DEFAULT_SYSTEM_PROMPT = `You are an AI assistant for MakeCode Arcade game development. Your responses are shown in a collapsed view, so ALWAYS use this exact format:
+const DEFAULT_SYSTEM_PROMPT = `You are a friendly coding helper for kids making MakeCode Arcade games! Keep all ideas fun, positive, and appropriate for children aged 6-12.
 
-📋 [One sentence: what you did or what the code does]
-▶ [One sentence: what the user should do or check next — or "Nothing, you're good!" if done]
+Your responses are shown in a collapsed view, so ALWAYS use this exact format:
+
+📋 [One sentence: what you did or what the code does — use simple, encouraging language]
+▶ [One sentence: what the kid should do or try next — or "Your game is ready to play! 🎉" if done]
 
 ---
 
@@ -15,6 +17,8 @@ Rules:
 - Always output the COMPLETE TypeScript file in a single \`\`\`typescript block after ---
 - Never output partial snippets — full file only
 - MakeCode Arcade uses a subset of TypeScript; avoid advanced TS features
+- Keep explanations simple — imagine explaining to a curious 8-year-old
+- Game ideas should be fun, friendly, and age-appropriate (think: adventure, animals, puzzles, sports, space)
 
 Key MakeCode Arcade APIs:
 - sprites.create(img\`...\`, SpriteKind.Player)
@@ -330,54 +334,196 @@ document.addEventListener('mouseup', () => {
   document.body.style.cursor = ''; document.body.style.userSelect = '';
 });
 
+// ── MakeCode webview JS helpers ────────────────────────────────────────────
+// Run JS in the webview, scanning the top frame AND same-origin iframes.
+// The script receives a helper `getMonaco()` that finds Monaco regardless of
+// whether window.monaco is exposed globally or only inside an iframe.
+async function wvRun(script) {
+  return webview.executeJavaScript(`(function(){
+    // ── Helpers injected into every wvRun call ──────────────────────────────
+
+    // Find Monaco via global, AMD cache, or window scan
+    function getMonaco(w) {
+      if (!w) return null;
+      if (w.monaco && w.monaco.editor) return w.monaco;
+      try {
+        if (w.require && w.require.s && w.require.s.contexts && w.require.s.contexts._) {
+          const def = w.require.s.contexts._.defined;
+          for (const k of Object.keys(def)) {
+            const mod = def[k];
+            if (mod && mod.editor && typeof mod.editor.getModels === 'function') return mod;
+          }
+        }
+      } catch(e) {}
+      try { const m = w.require('vs/editor/editor.main'); if (m && m.editor) return m; } catch(e) {}
+      try {
+        for (const k of Object.keys(w)) {
+          try { const v = w[k]; if (v && v.editor && typeof v.editor.getModels === 'function') return v; } catch(e) {}
+        }
+      } catch(e) {}
+      return null;
+    }
+
+    // Find Monaco in top frame or same-origin iframes
+    function findMonaco() {
+      const top = getMonaco(window);
+      if (top) return { monaco: top, src: 'top' };
+      for (const fr of [...document.querySelectorAll('iframe')]) {
+        try { const m = getMonaco(fr.contentWindow); if (m) return { monaco: m, src: fr.src || 'iframe' }; } catch(e) {}
+      }
+      return null;
+    }
+
+    // Best TypeScript model — prefer main.ts, then any .ts, then largest
+    function findTsModel(monaco) {
+      const models = monaco.editor.getModels();
+      if (!models.length) return null;
+      return models.find(m => /main\\.ts$/i.test(m.uri.path) || /main\\.ts$/i.test(m.uri.toString()))
+          || models.find(m => /\\.ts$/i.test(m.uri.path) || /\\.ts$/i.test(m.uri.toString()))
+          || models.find(m => { try { return (m.getLanguageId ? m.getLanguageId() : m.getModeId()) === 'typescript'; } catch { return false; }})
+          || models.reduce((a, b) => a.getValue().length >= b.getValue().length ? a : b);
+    }
+
+    // Find PXT's REAL editor component via React fiber tree
+    // ProjectView has openTypeScriptAsync / openBlocksAsync / typecheckNow
+    function findPxtEditor() {
+      function search(fiber, depth) {
+        if (!fiber || depth > 800) return null;
+        try {
+          const sn = fiber.stateNode;
+          if (sn && typeof sn.openTypeScriptAsync === 'function') return sn;
+          if (sn && typeof sn.typecheckNow === 'function') return sn;
+        } catch(e) {}
+        return search(fiber.child, depth + 1) || search(fiber.sibling, depth + 1);
+      }
+      const roots = [
+        document.getElementById('content'),
+        document.getElementById('root'),
+        document.body && document.body.firstElementChild,
+        document.body,
+      ].filter(Boolean);
+      for (const el of roots) {
+        const key = Object.keys(el).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
+        if (!key) continue;
+        const result = search(el[key], 0);
+        if (result) return result;
+      }
+      return null;
+    }
+
+    // Monaco model in the active editor instance — this is what the UI is actually showing
+    function findActiveMonacoModel() {
+      const f = findMonaco();
+      if (!f) return null;
+      // Prefer the editor INSTANCE's active model (the one shown in the UI)
+      if (f.monaco.editor.getEditors) {
+        const editors = f.monaco.editor.getEditors();
+        // Active editor: has focus, or first one with a .ts model
+        const ed = editors.find(e => { try { return e.hasTextFocus && e.hasTextFocus(); } catch { return false; }})
+                || editors.find(e => { try { const m = e.getModel(); return m && /\\.ts$/i.test(m.uri.toString()); } catch { return false; }})
+                || editors[0];
+        if (ed) { const m = ed.getModel(); if (m) return { model: m, editor: ed, monaco: f.monaco }; }
+      }
+      const m = findTsModel(f.monaco);
+      return m ? { model: m, editor: null, monaco: f.monaco } : null;
+    }
+
+    return (async function() { ${script} })();
+  })()`);
+}
+
 // ── MakeCode: view detection & switching ───────────────────────────────────
 async function detectView() {
   if (!webview) return 'unknown';
   try {
-    return await webview.executeJavaScript(`(function(){
-      const monacoEl = document.querySelector('.monaco-editor');
-      const blocklyEl = document.querySelector('.blocklyDiv,.blocksEditor');
-      const mV = monacoEl && monacoEl.getBoundingClientRect().height > 10;
-      const bV = blocklyEl && blocklyEl.getBoundingClientRect().height > 10;
-      if (mV && !bV) return 'javascript';
-      if (bV && !mV) return 'blocks';
-      if (mV) return 'javascript';
-      const tabs = [...document.querySelectorAll('[class*="toggle"],[role="tab"],.item.tab')];
-      for (const t of tabs) {
-        if (!t.offsetParent) continue;
-        const active = t.classList.contains('active') || t.classList.contains('selected') || t.getAttribute('aria-selected')==='true';
-        if (!active) continue;
-        const txt = (t.textContent||'').toLowerCase();
-        if (txt.includes('javascript')||txt.includes('typescript')) return 'javascript';
-        if (txt.includes('block')) return 'blocks';
+    return await wvRun(`
+      // 1. React fiber editor state (most reliable)
+      const ed = findPxtEditor();
+      if (ed && ed.state) {
+        const st = ed.state;
+        // PXT EditorState enum: 0=Blocks, 1=TypeScript, 2=Text, 3=JavaScript
+        if (st.editorState === 1 || st.editorState === 3) return 'javascript';
+        if (st.editorState === 0) return 'blocks';
+        // Some PXT versions use a string or nested object
+        if (st.header && st.editor) {
+          const e = st.editor;
+          if (typeof e === 'string') {
+            if (e.includes('typescript') || e.includes('javascript')) return 'javascript';
+            if (e.includes('blocks')) return 'blocks';
+          }
+        }
+      }
+      // 2. DOM presence: Monaco editor element
+      if (document.querySelector('.monaco-editor') &&
+          document.querySelector('.monaco-editor').getBoundingClientRect().height > 10) return 'javascript';
+      // 3. DOM presence: Blockly (any variant)
+      const bSel = '.blocklyDiv,.blocksEditor,.blocklySvg,.blocklyWidgetDiv';
+      const bEl = document.querySelector(bSel);
+      if (bEl && bEl.getBoundingClientRect().height > 10) return 'blocks';
+      // 4. Active tab/toggle text
+      for (const el of document.querySelectorAll('*')) {
+        if (!el.offsetParent) continue;
+        const txt = (el.textContent || '').trim().toLowerCase();
+        if (txt.length > 20 || txt.length === 0) continue;
+        const isActive = el.classList.contains('active') || el.classList.contains('selected')
+                      || el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-pressed') === 'true';
+        if (!isActive) continue;
+        if (txt === 'javascript' || txt === 'typescript' || txt === 'js') return 'javascript';
+        if (txt === 'blocks' || txt === 'block') return 'blocks';
       }
       return 'unknown';
-    })()`);
+    `);
   } catch { return 'unknown'; }
 }
 
 async function switchView(target) {
   if (!webview) return false;
+  const t = JSON.stringify(target);
   try {
-    return await webview.executeJavaScript(`(function(t){
-      try {
-        if (window.pxt && pxt.editor) {
-          if (t==='javascript' && typeof pxt.editor.openTypeScriptAsync==='function') { pxt.editor.openTypeScriptAsync(); return true; }
-          if (t==='blocks' && typeof pxt.editor.openBlocksAsync==='function') { pxt.editor.openBlocksAsync(); return true; }
-        }
-      } catch(e){}
-      const re = t==='javascript' ? /^(javascript|typescript|js|ts)$/i : /^blocks?$/i;
-      for (const el of [...document.querySelectorAll('a,button,[role="tab"],[role="button"],.item')]) {
+    return await wvRun(`
+      const _t = ${t};
+      // 1. React fiber editor — this is the real editor component
+      const ed = findPxtEditor();
+      if (ed) {
+        try {
+          if (_t === 'javascript' && typeof ed.openTypeScriptAsync === 'function') {
+            await ed.openTypeScriptAsync();
+            return true;
+          }
+          if (_t === 'blocks' && typeof ed.openBlocksAsync === 'function') {
+            await ed.openBlocksAsync();
+            return true;
+          }
+        } catch(e) {}
+      }
+      // 2. Click any visible element with matching text
+      const re = _t === 'javascript' ? /^(javascript|typescript|js|ts)$/i : /^blocks?$/i;
+      for (const el of [...document.querySelectorAll('*')]) {
         if (!el.offsetParent) continue;
-        const label = (el.textContent||el.title||el.getAttribute('aria-label')||'').trim();
-        if (re.test(label) && label.length < 20) { el.click(); return true; }
+        const tag = el.tagName;
+        if (!['A','BUTTON','SPAN','DIV','LI'].includes(tag)) continue;
+        const label = (el.textContent || el.title || el.getAttribute('aria-label') || '').trim();
+        if (re.test(label) && label.length <= 15) { el.click(); return true; }
       }
       return false;
-    })(${JSON.stringify(target)})`);
+    `);
   } catch { return false; }
 }
 
-async function waitForView(target, ms = 6000) {
+// Wait for Monaco to actually appear in the DOM (after switching to JS view)
+async function waitForMonacoInDOM(ms = 8000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    const found = await webview.executeJavaScript(
+      `!!(document.querySelector('.monaco-editor') && document.querySelector('.monaco-editor').getBoundingClientRect().height > 10)`
+    ).catch(() => false);
+    if (found) return true;
+    await delay(300);
+  }
+  return false;
+}
+
+async function waitForView(target, ms = 8000) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
     if (await detectView() === target) return true;
@@ -390,55 +536,95 @@ async function waitForView(target, ms = 6000) {
 async function getEditorCode() {
   if (!webview) return null;
   try {
-    const raw = await webview.executeJavaScript(`(function(){
-      try {
-        if (window.monaco && monaco.editor) {
-          const m = monaco.editor.getModels().find(m => m.uri.path.endsWith('.ts')||m.uri.path.endsWith('main.ts'));
-          if (m) return JSON.stringify({code: m.getValue()});
-        }
-      } catch(e){}
-      try {
-        if (window.pxt && pxt.editor && pxt.editor.getEditorState) {
-          const s = pxt.editor.getEditorState();
-          if (s) return JSON.stringify({code: typeof s==='string'?s:JSON.stringify(s)});
-        }
-      } catch(e){}
-      return JSON.stringify({code:null});
-    })()`);
+    const raw = await wvRun(`
+      const am = findActiveMonacoModel();
+      if (am) return JSON.stringify({code: am.model.getValue()});
+      const f = findMonaco();
+      if (f) {
+        const m = findTsModel(f.monaco);
+        if (m) return JSON.stringify({code: m.getValue()});
+      }
+      return JSON.stringify({code: null});
+    `);
     return JSON.parse(raw).code || null;
   } catch { return null; }
 }
 
 async function applyCodeToArcade(code) {
-  if (!webview) return false;
+  if (!webview) return null;
   try {
-    const r = await webview.executeJavaScript(`(function(c){
-      try {
-        if (window.monaco && monaco.editor) {
-          const m = monaco.editor.getModels().find(m => m.uri.path.endsWith('.ts'));
-          if (m) { m.pushEditOperations([],[{range:m.getFullModelRange(),text:c}],()=>null); return true; }
+    const result = await wvRun(`
+      const c = ${JSON.stringify(code)};
+
+      // Only write to the ACTIVE editor model — the one the UI is actually showing.
+      // Using findActiveMonacoModel() picks the editor instance's current model,
+      // not a background type-checking model.
+      const am = findActiveMonacoModel();
+      if (am) {
+        try {
+          if (am.editor) {
+            am.editor.executeEdits('makevibecode', [{range: am.model.getFullModelRange(), text: c, forceMoveMarkers: true}]);
+            am.editor.pushUndoStop();
+            return {ok: true, method: 'executeEdits-active'};
+          }
+          am.model.setValue(c);
+          return {ok: true, method: 'setValue-active'};
+        } catch(e) {}
+      }
+
+      // Fallback: use React fiber editor to update the file through PXT's own API
+      const ed = findPxtEditor();
+      if (ed) {
+        // Try various PXT ProjectView methods for updating file content
+        if (typeof ed.saveTypeScriptAsync === 'function') {
+          try { await ed.saveTypeScriptAsync(c); return {ok: true, method: 'pxt-saveTypeScriptAsync'}; } catch(e) {}
         }
-      } catch(e){}
+        if (typeof ed.updateFileAsync === 'function') {
+          try { await ed.updateFileAsync('main.ts', c); return {ok: true, method: 'pxt-updateFileAsync'}; } catch(e) {}
+        }
+        // Expose what's available on the editor component for diagnostics
+        const edMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(ed))
+          .filter(k => typeof ed[k] === 'function').slice(0, 40);
+        return {ok: false, pxtEditorMethods: edMethods};
+      }
+
+      // Full diagnostics when nothing works
+      const amdKeys = [];
       try {
-        if (window.pxt && pxt.editor && pxt.editor.setFile) { pxt.editor.setFile('main.ts',c); return true; }
-      } catch(e){}
-      return false;
-    })(${JSON.stringify(code)})`);
-    return !!r;
-  } catch { return false; }
+        if (window.require && window.require.s && window.require.s.contexts && window.require.s.contexts._) {
+          for (const k of Object.keys(window.require.s.contexts._.defined)) {
+            if (k.includes('editor') || k.includes('monaco')) amdKeys.push(k);
+          }
+        }
+      } catch(e) {}
+      return {
+        ok: false,
+        pageUrl: location.href,
+        foundMonaco: !!findMonaco(),
+        foundPxtEditor: !!findPxtEditor(),
+        domHasMonacoEl: !!document.querySelector('.monaco-editor'),
+        amdKeys,
+        pxtKeys: window.pxt ? Object.keys(window.pxt) : [],
+        visibleIds: [...document.querySelectorAll('[id]')].filter(e => e.offsetParent).slice(0,15).map(e => e.id),
+      };
+    `);
+    if (result?.ok) return true;
+    return result;
+  } catch(e) {
+    return {ok: false, error: e.message};
+  }
 }
 
 async function getEditorErrors() {
   if (!webview) return [];
   try {
-    const raw = await webview.executeJavaScript(`(function(){
-      try {
-        if (!window.monaco) return '[]';
-        return JSON.stringify(monaco.editor.getModelMarkers({})
-          .filter(m=>m.severity===8)
-          .map(m=>'Line '+m.startLineNumber+': '+m.message));
-      } catch(e){ return '[]'; }
-    })()`);
+    const raw = await wvRun(`
+      const f = findMonaco();
+      if (!f) return '[]';
+      return JSON.stringify(f.monaco.editor.getModelMarkers({})
+        .filter(m=>m.severity===8)
+        .map(m=>'Line '+m.startLineNumber+': '+m.message));
+    `);
     return JSON.parse(raw);
   } catch { return []; }
 }
@@ -513,12 +699,18 @@ async function vibeCodingPipeline(userText) {
   try {
     status.update('Detecting editor view…');
     const view = await detectView();
-    wasOnBlocks = view === 'blocks';
+    wasOnBlocks = view === 'blocks' || view === 'unknown';
 
-    if (wasOnBlocks) {
+    // Always ensure we're in JavaScript view before touching Monaco
+    if (view !== 'javascript') {
       status.update('Switching to JavaScript view…');
       await switchView('javascript');
-      await waitForView('javascript', 7000);
+      // Wait for Monaco to physically appear in the DOM — not just the hash change
+      const monacoReady = await waitForMonacoInDOM(9000);
+      if (!monacoReady) {
+        status.warn('Could not switch to JavaScript view — make sure a project is open in MakeCode');
+        return;
+      }
     }
 
     status.update('Reading current code…');
@@ -553,13 +745,19 @@ async function vibeCodingPipeline(userText) {
     }
 
     status.update('Applying code…');
-    const applied = await applyCodeToArcade(newCode);
-    if (!applied) {
-      status.warn('Could not apply code — check editor');
+    const applyResult = await applyCodeToArcade(newCode);
+    if (applyResult !== true) {
+      // applyResult is a diagnostic object — show it in chat so it can be reported
+      const diagStr = applyResult ? JSON.stringify(applyResult, null, 2) : 'unknown error';
+      status.warn('Could not apply code — see details below');
+      addMessage('error',
+        `📋 Code apply failed.\n▶ Copy the diagnostics below and share them.\n\n---\n\n\`\`\`json\n${diagStr}\n\`\`\``
+      );
       await saveCurrentConversation();
       if (wasOnBlocks) await restoreBlocks(status);
       return;
     }
+    attachedCode = newCode;
     attachedCode = newCode;
 
     // Error iteration loop
@@ -600,8 +798,7 @@ async function vibeCodingPipeline(userText) {
       const fixedCode = extractFirstCodeBlock(fixResult.text);
       if (!fixedCode) { status.warn('AI did not return a code block'); break; }
       status.update(`Applying fix ${iteration}…`);
-      await applyCodeToArcade(fixedCode);
-      attachedCode = fixedCode;
+      if (await applyCodeToArcade(fixedCode) === true) attachedCode = fixedCode;
     }
 
     await saveCurrentConversation();
