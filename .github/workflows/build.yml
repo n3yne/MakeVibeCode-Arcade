@@ -170,6 +170,8 @@ jobs:
   ios:
     name: iOS
     runs-on: macos-latest
+    env:
+      HAS_IOS_CERTS: ${{ secrets.IOS_CERTIFICATE_P12 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -241,7 +243,7 @@ jobs:
 
       # ── Signed IPA (only runs when IOS_CERTIFICATE_P12 secret is set) ─────────
       - name: Import signing certificate
-        if: ${{ secrets.IOS_CERTIFICATE_P12 != '' }}
+        if: env.HAS_IOS_CERTS == 'true'
         uses: apple-actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.IOS_CERTIFICATE_P12 }}
@@ -250,14 +252,14 @@ jobs:
           keychain-password: ${{ github.run_id }}
 
       - name: Install provisioning profile
-        if: ${{ secrets.IOS_PROVISIONING_PROFILE != '' }}
+        if: env.HAS_IOS_CERTS == 'true'
         run: |
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "${{ secrets.IOS_PROVISIONING_PROFILE }}" | base64 --decode \
             > ~/Library/MobileDevice/Provisioning\ Profiles/app.mobileprovision
 
       - name: Archive iOS app (signed)
-        if: ${{ secrets.IOS_CERTIFICATE_P12 != '' }}
+        if: env.HAS_IOS_CERTS == 'true'
         run: |
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
@@ -271,7 +273,7 @@ jobs:
             archive
 
       - name: Export IPA
-        if: ${{ secrets.IOS_CERTIFICATE_P12 != '' }}
+        if: env.HAS_IOS_CERTS == 'true'
         run: |
           cat > /tmp/ExportOptions.plist << PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -290,7 +292,7 @@ jobs:
             -exportOptionsPlist /tmp/ExportOptions.plist
 
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.IOS_CERTIFICATE_P12 != '' }}
+        if: env.HAS_IOS_CERTS == 'true'
         with:
           name: ios-signed
           path: ios/build/export/*.ipa
