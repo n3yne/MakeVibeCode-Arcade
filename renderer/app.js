@@ -54,7 +54,7 @@ let panelVisible = true;
 let currentConv = null; // { id, name, messages, createdAt, updatedAt }
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
-const webview = document.getElementById('arcade-webview');
+// arcade-webview is created dynamically by window.platform.initArcadeView()
 const messagesEl = document.getElementById('messages');
 const userInput = document.getElementById('user-input');
 const btnSend = document.getElementById('btn-send');
@@ -124,12 +124,41 @@ function parseAIResponse(text) {
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
-  const saved = await window.electronAPI.settingsGet();
+  await window.platform.initArcadeView();
+  if (window.platform.isMobile) initMobileTabs();
+  const saved = await window.platform.settingsGet();
   if (saved && Object.keys(saved).length > 0) {
     settings = { ...settings, ...saved };
   }
   await loadConversationList();
   addWelcomeMessage();
+}
+
+function initMobileTabs() {
+  document.body.classList.add('mobile');
+  const tabsEl = document.getElementById('mobile-tabs');
+  const arcadeContainer = document.getElementById('arcade-container');
+  const aiPanelEl = document.getElementById('ai-panel');
+  if (!tabsEl) return;
+  tabsEl.classList.remove('hidden');
+
+  document.getElementById('tab-editor').addEventListener('click', async () => {
+    document.getElementById('tab-editor').classList.add('active');
+    document.getElementById('tab-chat').classList.remove('active');
+    aiPanelEl.classList.add('hidden');
+    arcadeContainer.classList.remove('hidden');
+    await window.platform.initArcadeView();
+  });
+
+  document.getElementById('tab-chat').addEventListener('click', async () => {
+    document.getElementById('tab-chat').classList.add('active');
+    document.getElementById('tab-editor').classList.remove('active');
+    arcadeContainer.classList.add('hidden');
+    aiPanelEl.classList.remove('hidden');
+  });
+
+  // Start on Editor tab
+  aiPanelEl.classList.add('hidden');
 }
 
 function addWelcomeMessage() {
@@ -169,14 +198,14 @@ btnSaveSettings.addEventListener('click', async () => {
   settings.apiKey = document.getElementById('setting-apikey').value.trim();
   settings.model = document.getElementById('setting-model').value.trim();
   settings.systemPrompt = document.getElementById('setting-system-prompt').value.trim() || DEFAULT_SYSTEM_PROMPT;
-  await window.electronAPI.settingsSet(settings);
+  await window.platform.settingsSet(settings);
   closeSettings();
   addMessage('assistant', `📋 Settings saved — using ${settings.provider}${settings.model ? ' (' + settings.model + ')' : ''}.\n▶ Nothing, you're good!`);
 });
 
 // ── Conversation management ────────────────────────────────────────────────
 async function loadConversationList() {
-  const list = await window.electronAPI.convList();
+  const list = await window.platform.convList();
   convSelect.innerHTML = '';
 
   if (list.length === 0) {
@@ -200,7 +229,7 @@ async function loadConversationList() {
 }
 
 async function switchConversation(id) {
-  const conv = await window.electronAPI.convLoad(id);
+  const conv = await window.platform.convLoad(id);
   if (!conv) return;
   currentConv = conv;
   conversationHistory = conv.messages || [];
@@ -226,7 +255,7 @@ async function createNewConversation(switchTo = true) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-  await window.electronAPI.convSave(conv);
+  await window.platform.convSave(conv);
 
   const opt = document.createElement('option');
   opt.value = id;
@@ -259,7 +288,7 @@ async function saveCurrentConversation() {
       if (opt) opt.textContent = currentConv.name;
     }
   }
-  await window.electronAPI.convSave(currentConv);
+  await window.platform.convSave(currentConv);
 }
 
 convSelect.addEventListener('change', () => switchConversation(convSelect.value));
@@ -298,7 +327,7 @@ convRenameInput.addEventListener('blur', commitRename);
 btnDeleteConv.addEventListener('click', async () => {
   if (!currentConv) return;
   if (!confirm(`Delete "${currentConv.name}"?`)) return;
-  await window.electronAPI.convDelete(currentConv.id);
+  await window.platform.convDelete(currentConv.id);
   const opt = convSelect.querySelector(`option[value="${currentConv.id}"]`);
   if (opt) opt.remove();
   currentConv = null;
@@ -335,14 +364,10 @@ document.addEventListener('mouseup', () => {
 });
 
 // ── MakeCode webview JS helpers ────────────────────────────────────────────
-// Run JS in the webview, scanning the top frame AND same-origin iframes.
-// The script receives a helper `getMonaco()` that finds Monaco regardless of
-// whether window.monaco is exposed globally or only inside an iframe.
-async function wvRun(script) {
-  return webview.executeJavaScript(`(function(){
-    // ── Helpers injected into every wvRun call ──────────────────────────────
-
-    // Find Monaco via global, AMD cache, or window scan
+// Helper functions injected into every wvRun call.
+// These run inside arcade.makecode.com's JS context via executeJavaScript /
+// MakeCodeBridge.executeScript — they have no access to app.js variables.
+const HELPERS_BLOCK = `
     function getMonaco(w) {
       if (!w) return null;
       if (w.monaco && w.monaco.editor) return w.monaco;
@@ -363,8 +388,6 @@ async function wvRun(script) {
       } catch(e) {}
       return null;
     }
-
-    // Find Monaco in top frame or same-origin iframes
     function findMonaco() {
       const top = getMonaco(window);
       if (top) return { monaco: top, src: 'top' };
@@ -373,8 +396,6 @@ async function wvRun(script) {
       }
       return null;
     }
-
-    // Best TypeScript model — prefer main.ts, then any .ts, then largest
     function findTsModel(monaco) {
       const models = monaco.editor.getModels();
       if (!models.length) return null;
@@ -383,9 +404,6 @@ async function wvRun(script) {
           || models.find(m => { try { return (m.getLanguageId ? m.getLanguageId() : m.getModeId()) === 'typescript'; } catch { return false; }})
           || models.reduce((a, b) => a.getValue().length >= b.getValue().length ? a : b);
     }
-
-    // Find PXT's REAL editor component via React fiber tree
-    // ProjectView has openTypeScriptAsync / openBlocksAsync / typecheckNow
     function findPxtEditor() {
       function search(fiber, depth) {
         if (!fiber || depth > 800) return null;
@@ -410,15 +428,11 @@ async function wvRun(script) {
       }
       return null;
     }
-
-    // Monaco model in the active editor instance — this is what the UI is actually showing
     function findActiveMonacoModel() {
       const f = findMonaco();
       if (!f) return null;
-      // Prefer the editor INSTANCE's active model (the one shown in the UI)
       if (f.monaco.editor.getEditors) {
         const editors = f.monaco.editor.getEditors();
-        // Active editor: has focus, or first one with a .ts model
         const ed = editors.find(e => { try { return e.hasTextFocus && e.hasTextFocus(); } catch { return false; }})
                 || editors.find(e => { try { const m = e.getModel(); return m && /\\.ts$/i.test(m.uri.toString()); } catch { return false; }})
                 || editors[0];
@@ -427,14 +441,16 @@ async function wvRun(script) {
       const m = findTsModel(f.monaco);
       return m ? { model: m, editor: null, monaco: f.monaco } : null;
     }
+`;
 
-    return (async function() { ${script} })();
-  })()`);
+async function wvRun(script) {
+  return window.platform.wvRun(
+    HELPERS_BLOCK + '\nreturn (async function() {\n' + script + '\n})();'
+  );
 }
 
 // ── MakeCode: view detection & switching ───────────────────────────────────
 async function detectView() {
-  if (!webview) return 'unknown';
   try {
     return await wvRun(`
       // 1. React fiber editor state (most reliable)
@@ -477,7 +493,6 @@ async function detectView() {
 }
 
 async function switchView(target) {
-  if (!webview) return false;
   const t = JSON.stringify(target);
   try {
     return await wvRun(`
@@ -514,9 +529,9 @@ async function switchView(target) {
 async function waitForMonacoInDOM(ms = 8000) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
-    const found = await webview.executeJavaScript(
+    const found = await window.platform.wvEval(
       `!!(document.querySelector('.monaco-editor') && document.querySelector('.monaco-editor').getBoundingClientRect().height > 10)`
-    ).catch(() => false);
+    );
     if (found) return true;
     await delay(300);
   }
@@ -534,7 +549,6 @@ async function waitForView(target, ms = 8000) {
 
 // ── MakeCode: code read / write / errors ───────────────────────────────────
 async function getEditorCode() {
-  if (!webview) return null;
   try {
     const raw = await wvRun(`
       const am = findActiveMonacoModel();
@@ -551,7 +565,6 @@ async function getEditorCode() {
 }
 
 async function applyCodeToArcade(code) {
-  if (!webview) return null;
   try {
     const result = await wvRun(`
       const c = ${JSON.stringify(code)};
@@ -616,7 +629,6 @@ async function applyCodeToArcade(code) {
 }
 
 async function getEditorErrors() {
-  if (!webview) return [];
   try {
     const raw = await wvRun(`
       const f = findMonaco();
@@ -673,7 +685,7 @@ class PipelineStatus {
 
 // ── AI call ────────────────────────────────────────────────────────────────
 async function callAI(messages) {
-  return window.electronAPI.aiRequest({
+  return window.platform.aiRequest({
     provider: settings.provider,
     config: { apiKey: settings.apiKey, model: settings.model },
     messages: messages.slice(-20).map(({ role, content }) => ({ role, content })),
@@ -818,7 +830,6 @@ async function restoreBlocks(status) {
 
 // ── Manual Get Code button ─────────────────────────────────────────────────
 btnGetCode.addEventListener('click', async () => {
-  if (!webview) return;
   btnGetCode.disabled = true;
   btnGetCode.textContent = 'Fetching…';
   try {
@@ -975,7 +986,7 @@ btnClearChat.addEventListener('click', async () => {
   messagesEl.innerHTML = '';
   if (currentConv) {
     currentConv.messages = [];
-    await window.electronAPI.convSave(currentConv);
+    await window.platform.convSave(currentConv);
   }
   addWelcomeMessage();
 });
@@ -988,20 +999,21 @@ userInput.addEventListener('input', () => {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSettings(); });
 
-// ── Webview sizing ─────────────────────────────────────────────────────────
+// ── Webview sizing (Electron only) ─────────────────────────────────────────
 function sizeWebview() {
+  if (!window.platform || !window.platform.isElectron) return;
+  const wv = document.getElementById('arcade-webview');
   const container = document.getElementById('arcade-container');
-  if (!webview || !container) return;
+  if (!wv || !container) return;
   const { width, height } = container.getBoundingClientRect();
   if (width > 0 && height > 0) {
-    webview.style.width = width + 'px';
-    webview.style.height = height + 'px';
+    wv.style.width = width + 'px';
+    wv.style.height = height + 'px';
   }
 }
 const containerObserver = new ResizeObserver(sizeWebview);
 containerObserver.observe(document.getElementById('arcade-container'));
 window.addEventListener('resize', sizeWebview);
-sizeWebview();
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 init();

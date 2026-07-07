@@ -1,0 +1,24 @@
+{
+  "appId": "com.pghnetworks.makevibecodearcade",
+  "appName": "MakeVibeCode Arcade",
+  "webDir": "renderer",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "backgroundColor": "#1e1e2e"
+    },
+    "StatusBar": {
+      "style": "dark",
+      "backgroundColor": "#27273a"
+    }
+  },
+  "android": {
+    "allowMixedContent": true
+  },
+  "ios": {
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}

@@ -1,0 +1,315 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Builds MakeVibeCode Arcade for all 5 platforms and uploads artifacts.
+#
+# Triggers: push to main | any GitHub Release | manual "Run workflow"
+#
+# ── Secrets for signed iOS IPA ───────────────────────────────────────────────
+#   IOS_CERTIFICATE_P12          Base64-encoded distribution cert (.p12)
+#     How: Keychain Access → export your Apple distribution cert → base64 encode
+#     macOS: base64 -i cert.p12 | pbcopy
+#   IOS_CERTIFICATE_PASSWORD     Password chosen when exporting the .p12
+#   IOS_PROVISIONING_PROFILE     Base64-encoded provisioning profile (.mobileprovision)
+#     How: developer.apple.com → Certificates, IDs & Profiles → Profiles → Download
+#     macOS: base64 -i profile.mobileprovision | pbcopy
+#   IOS_TEAM_ID                  10-char Apple Developer Team ID
+#     How: developer.apple.com → Account → Membership Details
+#
+#   Without these four secrets, the iOS job still runs but produces a
+#   simulator-only build to verify the pipeline compiles successfully.
+#   Change the export method from "development" to "app-store" when you're
+#   ready to submit to TestFlight / App Store.
+#
+# ── Optional secrets for signed desktop builds ───────────────────────────────
+#   WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD   Windows EV/OV certificate (.pfx, base64)
+#   CSC_LINK / CSC_KEY_PASSWORD           macOS Developer certificate (.p12, base64)
+#   APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID   for notarization
+# ─────────────────────────────────────────────────────────────────────────────
+name: Build All Platforms
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [created]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ── Windows (.exe installer + portable) ─────────────────────────────────────
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build Windows installer and portable
+        run: npm run dist:win
+        env:
+          # Unsigned by default; supply WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD to sign
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.WIN_CSC_LINK != '' }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+
+  # ── macOS (universal DMG for Intel + Apple Silicon) ──────────────────────────
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build macOS DMG
+        run: npm run dist:mac
+        env:
+          # Unsigned by default; supply CSC_LINK + CSC_KEY_PASSWORD to sign,
+          # and APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID to notarize
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*.dmg
+
+  # ── Linux (AppImage + .deb) ──────────────────────────────────────────────────
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build Linux packages
+        run: npm run dist:linux
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+
+  # ── Android (debug APK) ──────────────────────────────────────────────────────
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - run: npm ci
+
+      - name: Sync web assets into Android project
+        run: npx cap sync android
+
+      - name: Write local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: android/app/build/outputs/apk/debug/*.apk
+
+  # ── iOS (simulator build always; signed IPA when secrets are set) ────────────
+  ios:
+    name: iOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      # Cache the CocoaPods spec index (the slow part) keyed to Capacitor version
+      - name: Cache CocoaPods spec index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cocoapods
+          key: cocoapods-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: cocoapods-${{ runner.os }}-
+
+      # Generates ios/ project and runs `pod install` automatically
+      - name: Generate iOS project
+        run: npx cap add ios
+
+      # Copy the MakeCodeBridge native plugin sources into the new Xcode project
+      - name: Copy MakeCodeBridge plugin sources
+        run: |
+          mkdir -p ios/App/App/Plugins/MakeCodeBridge
+          cp native-plugins/ios/MakeCodeBridgePlugin.swift ios/App/App/Plugins/MakeCodeBridge/
+          cp native-plugins/ios/MakeCodeBridgePlugin.m    ios/App/App/Plugins/MakeCodeBridge/
+
+      # Add the copied files to the Xcode project so they get compiled
+      - name: Register plugin files in Xcode project
+        run: |
+          gem install xcodeproj --no-document
+          ruby .github/scripts/add_ios_plugin.rb
+
+      # ── Simulator build (unsigned — no secrets needed) ───────────────────────
+      - name: Build for iOS Simulator
+        run: |
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios/build/simulator \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package simulator app
+        run: |
+          mkdir -p artifacts
+          APP=$(find ios/build/simulator/Build/Products -name "*.app" -maxdepth 4 -type d 2>/dev/null | head -1)
+          if [ -n "$APP" ] && [ -d "$APP" ]; then
+            tar -czf artifacts/MakeVibeCode-Arcade-iOS-Simulator.tar.gz \
+              -C "$(dirname "$APP")" "$(basename "$APP")"
+            echo "Packaged: $APP"
+          else
+            echo "Warning: no .app found — listing build output:"
+            find ios/build/simulator -name "*.app" 2>/dev/null || true
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator
+          path: artifacts/MakeVibeCode-Arcade-iOS-Simulator.tar.gz
+          if-no-files-found: warn
+
+      # ── Signed IPA (only runs when IOS_CERTIFICATE_P12 secret is set) ─────────
+      - name: Import signing certificate
+        if: ${{ secrets.IOS_CERTIFICATE_P12 != '' }}
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          p12-password: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          keychain: build
+          keychain-password: ${{ github.run_id }}
+
+      - name: Install provisioning profile
+        if: ${{ secrets.IOS_PROVISIONING_PROFILE != '' }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "${{ secrets.IOS_PROVISIONING_PROFILE }}" | base64 --decode \
+            > ~/Library/MobileDevice/Provisioning\ Profiles/app.mobileprovision
+
+      - name: Archive iOS app (signed)
+        if: ${{ secrets.IOS_CERTIFICATE_P12 != '' }}
+        run: |
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath ios/build/App.xcarchive \
+            DEVELOPMENT_TEAM="${{ secrets.IOS_TEAM_ID }}" \
+            CODE_SIGNING_ALLOWED=YES \
+            archive
+
+      # Change method: development → app-store when ready to submit to TestFlight/App Store
+      - name: Export IPA
+        if: ${{ secrets.IOS_CERTIFICATE_P12 != '' }}
+        run: |
+          cat > /tmp/ExportOptions.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>development</string>
+            <key>teamID</key><string>${{ secrets.IOS_TEAM_ID }}</string>
+            <key>compileBitcode</key><false/>
+            <key>uploadSymbols</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild \
+            -exportArchive \
+            -archivePath ios/build/App.xcarchive \
+            -exportPath ios/build/export \
+            -exportOptionsPlist /tmp/ExportOptions.plist
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ secrets.IOS_CERTIFICATE_P12 != '' }}
+        with:
+          name: ios-signed
+          path: ios/build/export/*.ipa
+
+  # ── Attach all artifacts to the GitHub Release ───────────────────────────────
+  release:
+    name: Publish Release
+    needs: [windows, macos, linux, android, ios]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**

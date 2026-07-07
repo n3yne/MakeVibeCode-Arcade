@@ -4,7 +4,12 @@ node_modules/
 # Electron build output
 dist/
 out/
-build/
+
+# Build config folder is tracked; ignore only generated binaries inside it
+build/icon.ico
+build/icon.icns
+build/icons/
+build/icon-source.png
 
 # Electron binary cache
 electron/
@@ -29,3 +34,12 @@ Thumbs.db
 
 # User data (API keys, conversations, settings saved at runtime)
 userdata/
+
+# Capacitor iOS platform (add on macOS via: npx cap add ios)
+# ios/ contains Xcode project — track it once generated; copies live in native-plugins/ios/
+ios/
+
+# Android build artifacts (keep source, ignore build output)
+android/.gradle/
+android/app/build/
+android/build/
