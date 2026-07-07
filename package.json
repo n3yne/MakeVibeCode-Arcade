@@ -32,7 +32,7 @@
     "electron@34.5.8": true
   },
   "build": {
-    "appId": "com.pghnetworks.makevibecode-arcade",
+    "appId": "com.esscey.makevibecodearcade",
     "productName": "MakeVibeCode Arcade",
     "asar": true,
     "files": [
