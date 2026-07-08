@@ -52,7 +52,7 @@ jobs:
       - run: npm ci
 
       - name: Build Windows installer and portable
-        run: npm run dist:win
+        run: npm run dist:win -- --publish=never
         env:
           # Unsigned by default; supply WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD to sign
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
@@ -81,7 +81,7 @@ jobs:
       - run: npm ci
 
       - name: Build macOS DMG
-        run: npm run dist:mac
+        run: npm run dist:mac -- --publish=never
         env:
           # Unsigned by default; supply CSC_LINK + CSC_KEY_PASSWORD to sign,
           # and APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID to notarize
@@ -112,7 +112,7 @@ jobs:
       - run: npm ci
 
       - name: Build Linux packages
-        run: npm run dist:linux
+        run: npm run dist:linux -- --publish=never
 
       - uses: actions/upload-artifact@v4
         with:
