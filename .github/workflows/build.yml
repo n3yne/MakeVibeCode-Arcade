@@ -267,12 +267,41 @@ jobs:
       # ── Signed IPA (only runs when IOS_CERTIFICATE_P12 secret is set) ─────────
       - name: Import signing certificate
         if: env.HAS_IOS_CERTS == 'true'
-        uses: apple-actions/import-codesign-certs@v3
-        with:
-          p12-file-base64: ${{ secrets.IOS_CERTIFICATE_P12 }}
-          p12-password: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
-          keychain: build
-          keychain-password: ${{ github.run_id }}
+        env:
+          CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KC_PATH=$RUNNER_TEMP/build.keychain-db
+          KC_PASS=$(openssl rand -hex 16)
+          echo "KEYCHAIN_PATH=$KC_PATH" >> $GITHUB_ENV
+
+          # Decode .p12 and verify it contains a private key before importing
+          echo "$CERTIFICATE_P12_BASE64" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          echo "=== Verifying .p12 (exits non-zero if password wrong or no private key) ==="
+          openssl pkcs12 -in $RUNNER_TEMP/certificate.p12 \
+            -passin pass:"$CERTIFICATE_PASSWORD" -nocerts -noout \
+            && echo "✓ Private key found in .p12" \
+            || { echo "✗ No private key in .p12 — re-export from Keychain Access → My Certificates (not Certificates)"; exit 1; }
+
+          # Create a fresh, unlocked keychain
+          security create-keychain -p "$KC_PASS" "$KC_PATH"
+          security set-keychain-settings -lut 21600 "$KC_PATH"
+          security unlock-keychain -p "$KC_PASS" "$KC_PATH"
+
+          # Import certificate + private key
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KC_PATH"
+
+          # Allow codesign/xcodebuild to use the key without interactive prompts
+          security set-key-partition-list \
+            -S apple-tool:,apple: -k "$KC_PASS" "$KC_PATH"
+
+          # Add to keychain search list while preserving existing keychains
+          security list-keychains -d user -s "$KC_PATH" \
+            $(security list-keychains -d user | xargs echo)
+
+          echo "=== Codesigning identities available ==="
+          security find-identity -v -p codesigning "$KC_PATH"
 
       - name: Install provisioning profile
         if: env.HAS_IOS_CERTS == 'true'
