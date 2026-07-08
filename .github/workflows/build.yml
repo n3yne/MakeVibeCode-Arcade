@@ -318,12 +318,14 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "${{ secrets.IOS_PROVISIONING_PROFILE }}" | base64 --decode \
             > ~/Library/MobileDevice/Provisioning\ Profiles/app.mobileprovision
-          # Extract UUID so xcodebuild can find it by UUID rather than by name search
+          # Extract UUID and Name — the export plist needs the Name, xcodebuild the UUID
           security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/app.mobileprovision \
             > /tmp/profile.plist
           PP_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /tmp/profile.plist)
+          PP_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' /tmp/profile.plist)
           echo "PROVISIONING_PROFILE_UUID=$PP_UUID" >> $GITHUB_ENV
-          echo "Installed profile UUID: $PP_UUID"
+          echo "PROVISIONING_PROFILE_NAME=$PP_NAME" >> $GITHUB_ENV
+          echo "Installed profile: $PP_NAME ($PP_UUID)"
 
       - name: Archive iOS app (signed)
         if: env.HAS_IOS_CERTS == 'true'
@@ -344,12 +346,19 @@ jobs:
       - name: Export IPA
         if: env.HAS_IOS_CERTS == 'true'
         run: |
+          BUNDLE_ID=$(node -p "require('./capacitor.config.json').appId")
           cat > /tmp/ExportOptions.plist << PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
-            <key>method</key><string>app-store</string>
+            <key>method</key><string>app-store-connect</string>
             <key>teamID</key><string>${{ secrets.IOS_TEAM_ID }}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key><string>$PROVISIONING_PROFILE_NAME</string>
+            </dict>
             <key>compileBitcode</key><false/>
             <key>uploadSymbols</key><false/>
           </dict></plist>
