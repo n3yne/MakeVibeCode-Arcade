@@ -51,13 +51,20 @@ jobs:
 
       - run: npm ci
 
+      # See the macOS job for why empty-but-set CSC_LINK is avoided.
+      - name: Configure Windows signing env (optional)
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.WIN_CSC_LINK }}" ]; then
+            echo "CSC_LINK=${{ secrets.WIN_CSC_LINK }}" >> $GITHUB_ENV
+            echo "CSC_KEY_PASSWORD=${{ secrets.WIN_CSC_KEY_PASSWORD }}" >> $GITHUB_ENV
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=true" >> $GITHUB_ENV
+          else
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> $GITHUB_ENV
+          fi
+
       - name: Build Windows installer and portable
         run: npm run dist:win -- --publish=never
-        env:
-          # Unsigned by default; supply WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD to sign
-          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.WIN_CSC_LINK != '' }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -80,17 +87,26 @@ jobs:
 
       - run: npm ci
 
+      # electron-builder treats an empty-but-set CSC_LINK as "load a cert file here"
+      # and fails trying to read the repo root as a file. Only set signing env vars
+      # when the secrets actually have values; otherwise stay fully unsigned.
+      - name: Configure macOS signing env (optional)
+        run: |
+          if [ -n "${{ secrets.CSC_LINK }}" ]; then
+            echo "CSC_LINK=${{ secrets.CSC_LINK }}" >> $GITHUB_ENV
+            echo "CSC_KEY_PASSWORD=${{ secrets.CSC_KEY_PASSWORD }}" >> $GITHUB_ENV
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=true" >> $GITHUB_ENV
+          else
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> $GITHUB_ENV
+          fi
+          if [ -n "${{ secrets.APPLE_ID }}" ]; then
+            echo "APPLE_ID=${{ secrets.APPLE_ID }}" >> $GITHUB_ENV
+            echo "APPLE_APP_SPECIFIC_PASSWORD=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" >> $GITHUB_ENV
+            echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}" >> $GITHUB_ENV
+          fi
+
       - name: Build macOS DMG
         run: npm run dist:mac -- --publish=never
-        env:
-          # Unsigned by default; supply CSC_LINK + CSC_KEY_PASSWORD to sign,
-          # and APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID to notarize
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - uses: actions/upload-artifact@v4
         with:
