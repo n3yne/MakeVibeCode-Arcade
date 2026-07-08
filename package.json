@@ -12,7 +12,10 @@
     "dist:all": "electron-builder -mwl"
   },
   "keywords": [],
-  "author": "PGH Networks",
+  "author": {
+    "name": "Sean Creasy",
+    "email": "swcreasy@gmail.com"
+  },
   "license": "MIT",
   "dependencies": {
     "@capacitor/core": "^8.4.1",
