@@ -207,6 +207,10 @@ jobs:
           gem install xcodeproj --no-document
           ruby .github/scripts/add_ios_plugin.rb
 
+      # Ensure the .xcworkspace exists (CocoaPods creates it; cap add ios may skip pod install)
+      - name: Install CocoaPods dependencies
+        run: cd ios/App && pod install --repo-update
+
       # ── Simulator build (unsigned — no secrets needed) ───────────────────────
       - name: Build for iOS Simulator
         run: |
