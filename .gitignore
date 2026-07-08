@@ -36,8 +36,8 @@ Thumbs.db
 userdata/
 
 # Capacitor iOS platform (add on macOS via: npx cap add ios)
-# ios/ contains Xcode project — track it once generated; copies live in native-plugins/ios/
-ios/
+# /ios/ is the generated Xcode project at repo root — native-plugins/ios/ is tracked
+/ios/
 
 # Android build artifacts (keep source, ignore build output)
 android/.gradle/
