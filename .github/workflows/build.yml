@@ -280,12 +280,14 @@ jobs:
           # Decode .p12 — echo -n avoids a trailing newline that can corrupt the decode
           echo -n "$CERTIFICATE_P12_BASE64" | base64 --decode -o "$CERT_PATH"
 
-          # Verify private key is present (macOS p12s use RC2-40-CBC, need -legacy on OpenSSL 3)
-          echo "=== .p12 verification ==="
-          openssl pkcs12 -legacy -in "$CERT_PATH" \
-            -passin pass:"$CERTIFICATE_PASSWORD" -nocerts -noout \
+          # Informational only — the real gate is the find-identity count check below.
+          # macOS p12s use RC2-40-CBC, which needs -legacy on OpenSSL 3.x but the flag
+          # doesn't exist on LibreSSL (macOS system openssl), and runner images vary.
+          echo "=== .p12 verification (informational) ==="
+          openssl pkcs12 -legacy -in "$CERT_PATH" -passin pass:"$CERTIFICATE_PASSWORD" -nocerts -noout 2>/dev/null \
+            || openssl pkcs12 -in "$CERT_PATH" -passin pass:"$CERTIFICATE_PASSWORD" -nocerts -noout 2>/dev/null \
             && echo "✓ Private key present in .p12" \
-            || { echo "✗ No private key found — re-export from Keychain Access → My Certificates (the ▶ row with the private key nested under it)"; exit 1; }
+            || echo "⚠ openssl check inconclusive (flag/cipher mismatch) — deferring to security import below"
 
           # Create, configure, and unlock a temporary keychain
           security create-keychain -p "$KC_PASS" "$KC_PATH"
