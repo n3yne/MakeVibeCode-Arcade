@@ -207,15 +207,34 @@ jobs:
           gem install xcodeproj --no-document
           ruby .github/scripts/add_ios_plugin.rb
 
-      # Ensure the .xcworkspace exists (CocoaPods creates it; cap add ios may skip pod install)
-      - name: Install CocoaPods dependencies
-        run: cd ios/App && pod install --repo-update
+      # Capacitor 8 uses Swift Package Manager — no Podfile/workspace needed.
+      # Fall back to pod install only if a Podfile is present (older setups).
+      - name: Install CocoaPods dependencies (if Podfile present)
+        run: |
+          if [ -f ios/App/Podfile ]; then
+            cd ios/App && pod install --repo-update
+          else
+            echo "No Podfile found — project uses Swift Package Manager, skipping pod install"
+          fi
+
+      # Detect whether to use CocoaPods workspace or raw xcodeproj
+      - name: Resolve Xcode project reference
+        run: |
+          if [ -d ios/App/App.xcworkspace ]; then
+            echo "XCODE_REF=-workspace ios/App/App.xcworkspace" >> $GITHUB_ENV
+            echo "Using CocoaPods workspace"
+          else
+            echo "XCODE_REF=-project ios/App/App.xcodeproj" >> $GITHUB_ENV
+            echo "Using SPM project directly"
+          fi
+          echo "--- ios/App/ contents ---"
+          ls -la ios/App/
 
       # ── Simulator build (unsigned — no secrets needed) ───────────────────────
       - name: Build for iOS Simulator
         run: |
           xcodebuild \
-            -workspace ios/App/App.xcworkspace \
+            $XCODE_REF \
             -scheme App \
             -configuration Debug \
             -sdk iphonesimulator \
@@ -266,7 +285,7 @@ jobs:
         if: env.HAS_IOS_CERTS == 'true'
         run: |
           xcodebuild \
-            -workspace ios/App/App.xcworkspace \
+            $XCODE_REF \
             -scheme App \
             -configuration Release \
             -sdk iphoneos \
