@@ -271,38 +271,44 @@ jobs:
           CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12 }}
           CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
         run: |
-          KC_PATH=$RUNNER_TEMP/build.keychain-db
+          CERT_PATH=$RUNNER_TEMP/build_certificate.p12
+          KC_PATH=$RUNNER_TEMP/app-signing.keychain-db
           KC_PASS=$(openssl rand -hex 16)
           echo "KEYCHAIN_PATH=$KC_PATH" >> $GITHUB_ENV
+          echo "KEYCHAIN_PASSWORD=$KC_PASS" >> $GITHUB_ENV
 
-          # Decode .p12
-          echo "$CERTIFICATE_P12_BASE64" | base64 --decode > $RUNNER_TEMP/certificate.p12
-          # Verify: -legacy flag required for macOS-exported .p12 files (RC2-40-CBC cipher)
-          echo "=== Verifying .p12 ==="
-          openssl pkcs12 -legacy -in $RUNNER_TEMP/certificate.p12 \
+          # Decode .p12 — echo -n avoids a trailing newline that can corrupt the decode
+          echo -n "$CERTIFICATE_P12_BASE64" | base64 --decode -o "$CERT_PATH"
+
+          # Verify private key is present (macOS p12s use RC2-40-CBC, need -legacy on OpenSSL 3)
+          echo "=== .p12 verification ==="
+          openssl pkcs12 -legacy -in "$CERT_PATH" \
             -passin pass:"$CERTIFICATE_PASSWORD" -nocerts -noout \
-            && echo "✓ Private key found in .p12" \
-            || echo "⚠ openssl check inconclusive — proceeding with security import"
+            && echo "✓ Private key present in .p12" \
+            || { echo "✗ No private key found — re-export from Keychain Access → My Certificates (the ▶ row with the private key nested under it)"; exit 1; }
 
-          # Create a fresh, unlocked keychain
+          # Create, configure, and unlock a temporary keychain
           security create-keychain -p "$KC_PASS" "$KC_PATH"
           security set-keychain-settings -lut 21600 "$KC_PATH"
           security unlock-keychain -p "$KC_PASS" "$KC_PATH"
 
-          # Import certificate + private key
-          security import $RUNNER_TEMP/certificate.p12 \
-            -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KC_PATH"
+          # Import certificate + private key, then allow access without interactive prompts
+          security import "$CERT_PATH" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KC_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KC_PASS" "$KC_PATH"
 
-          # Allow codesign/xcodebuild to use the key without interactive prompts
-          security set-key-partition-list \
-            -S apple-tool:,apple: -k "$KC_PASS" "$KC_PATH"
+          # Replace keychain search list with ours so codesign finds it
+          security list-keychain -d user -s "$KC_PATH"
 
-          # Add to keychain search list while preserving existing keychains
-          security list-keychains -d user -s "$KC_PATH" \
-            $(security list-keychains -d user | xargs echo)
-
-          echo "=== Codesigning identities available ==="
+          # Hard fail if no valid identity ended up in the keychain
+          echo "=== Codesigning identities ==="
           security find-identity -v -p codesigning "$KC_PATH"
+          COUNT=$(security find-identity -v -p codesigning "$KC_PATH" | grep -c "Apple Distribution\|iPhone Distribution" || true)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "✗ Certificate imported but no valid distribution identity found."
+            echo "  The .p12 may have been exported from 'Certificates' instead of 'My Certificates'."
+            exit 1
+          fi
+          echo "✓ $COUNT valid distribution identity/identities ready"
 
       - name: Install provisioning profile
         if: env.HAS_IOS_CERTS == 'true'
