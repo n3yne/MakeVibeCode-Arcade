@@ -5,7 +5,7 @@ import WebKit
 @objc(MakeCodeBridgePlugin)
 public class MakeCodeBridgePlugin: CAPPlugin, WKNavigationDelegate, WKScriptMessageHandler {
 
-    private var webView: WKWebView?
+    private var arcadeWebView: WKWebView?
     private var pendingScripts: [String: CAPPluginCall] = [:]
     private let lock = NSLock()
 
@@ -19,9 +19,9 @@ public class MakeCodeBridgePlugin: CAPPlugin, WKNavigationDelegate, WKScriptMess
         }
 
         DispatchQueue.main.async {
-            if self.webView != nil {
+            if self.arcadeWebView != nil {
                 // Already showing — just navigate if URL changed
-                self.webView?.load(URLRequest(url: url))
+                self.arcadeWebView?.load(URLRequest(url: url))
                 call.resolve()
                 return
             }
@@ -55,7 +55,7 @@ public class MakeCodeBridgePlugin: CAPPlugin, WKNavigationDelegate, WKScriptMess
             wv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
             rootView.insertSubview(wv, at: 0)
-            self.webView = wv
+            self.arcadeWebView = wv
             wv.load(URLRequest(url: url))
             call.resolve()
         }
@@ -65,8 +65,8 @@ public class MakeCodeBridgePlugin: CAPPlugin, WKNavigationDelegate, WKScriptMess
 
     @objc func hide(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            self.webView?.removeFromSuperview()
-            self.webView = nil
+            self.arcadeWebView?.removeFromSuperview()
+            self.arcadeWebView = nil
             call.resolve()
         }
     }
@@ -78,7 +78,7 @@ public class MakeCodeBridgePlugin: CAPPlugin, WKNavigationDelegate, WKScriptMess
             call.reject("Missing 'script' parameter")
             return
         }
-        guard let wv = webView else {
+        guard let wv = arcadeWebView else {
             call.reject("WebView not initialised — call show() first")
             return
         }
