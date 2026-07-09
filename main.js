@@ -273,6 +273,133 @@ ipcMain.handle('ai-request', async (event, { provider, config, messages, systemP
   });
 });
 
+// Parses the model-list response shape for each provider into a flat sorted
+// array of model ID strings the user can pick from in the Settings dropdown.
+function extractModelIds(provider, parsed) {
+  switch (provider) {
+    case 'openai':
+      return (parsed.data || []).map(m => m.id).sort();
+    case 'anthropic':
+      return (parsed.data || []).map(m => m.id);
+    case 'google':
+      return (parsed.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => m.name.replace(/^models\//, ''));
+    default:
+      return [];
+  }
+}
+
+// OpenRouter's key-check endpoint doesn't return models; its model catalog
+// is a separate, public (no-auth) endpoint. Best-effort — failures here
+// shouldn't fail the overall key test.
+function fetchOpenRouterModels() {
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: 'openrouter.ai',
+      path: '/api/v1/models',
+      method: 'GET',
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve((parsed.data || []).map(m => m.id).sort());
+        } catch (_) { resolve([]); }
+      });
+    });
+    req.on('error', () => resolve([]));
+    req.setTimeout(10000, () => { req.destroy(); resolve([]); });
+    req.end();
+  });
+}
+
+// Lightweight connectivity check for a provider + API key — hits each
+// provider's cheapest "list models" / key-info endpoint instead of
+// generating a completion, so it doesn't burn quota. On success, also
+// returns the parsed model list so Settings can offer a dropdown.
+ipcMain.handle('test-api-key', async (event, { provider, apiKey }) => {
+  if (!apiKey) {
+    return { ok: false, error: 'No API key entered' };
+  }
+
+  let options;
+  switch (provider) {
+    case 'openai':
+      options = {
+        hostname: 'api.openai.com',
+        path: '/v1/models',
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      };
+      break;
+
+    case 'anthropic':
+      options = {
+        hostname: 'api.anthropic.com',
+        path: '/v1/models',
+        method: 'GET',
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      };
+      break;
+
+    case 'google':
+      options = {
+        hostname: 'generativelanguage.googleapis.com',
+        path: `/v1beta/models?key=${encodeURIComponent(apiKey)}`,
+        method: 'GET',
+      };
+      break;
+
+    case 'openrouter':
+      options = {
+        hostname: 'openrouter.ai',
+        path: '/api/v1/auth/key',
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      };
+      break;
+
+    default:
+      return { ok: false, error: `Unknown provider: ${provider}` };
+  }
+
+  const response = await new Promise((resolve) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => resolve({ statusCode: res.statusCode, data }));
+    });
+    req.on('error', (e) => resolve({ error: e.message }));
+    req.setTimeout(10000, () => {
+      req.destroy();
+      resolve({ error: 'Request timed out' });
+    });
+    req.end();
+  });
+
+  if (response.error) return { ok: false, error: response.error };
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    let error = `HTTP ${response.statusCode}`;
+    try {
+      const parsed = JSON.parse(response.data);
+      error = parsed.error?.message || parsed.error?.type || error;
+    } catch (_) { /* keep generic HTTP status message */ }
+    return { ok: false, error };
+  }
+
+  let models = [];
+  try {
+    models = provider === 'openrouter'
+      ? await fetchOpenRouterModels()
+      : extractModelIds(provider, JSON.parse(response.data));
+  } catch (_) { /* model list is best-effort; key is still valid */ }
+
+  return { ok: true, models };
+});
+
 // Save/load settings
 const Store = (() => {
   const fs = require('fs');

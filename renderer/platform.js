@@ -161,6 +161,48 @@ You are a coding assistant for children aged 6-12 using MakeCode Arcade. These r
       }
     }
 
+    // Cheapest "list models" / key-info endpoint per provider — mirrors main.js test-api-key handler
+    function buildTestKeyRequest(provider, apiKey) {
+      switch (provider) {
+        case 'openai':
+          return { url: 'https://api.openai.com/v1/models', headers: { 'Authorization': `Bearer ${apiKey}` } };
+        case 'anthropic':
+          return { url: 'https://api.anthropic.com/v1/models', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' } };
+        case 'google':
+          return { url: `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`, headers: {} };
+        case 'openrouter':
+          return { url: 'https://openrouter.ai/api/v1/auth/key', headers: { 'Authorization': `Bearer ${apiKey}` } };
+        default:
+          throw new Error(`Unknown provider: ${provider}`);
+      }
+    }
+
+    // Mirrors main.js extractModelIds — parses each provider's model-list
+    // response shape into a flat sorted array of model ID strings.
+    function extractModelIds(provider, parsed) {
+      switch (provider) {
+        case 'openai':
+          return (parsed.data || []).map(m => m.id).sort();
+        case 'anthropic':
+          return (parsed.data || []).map(m => m.id);
+        case 'google':
+          return (parsed.models || [])
+            .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+            .map(m => m.name.replace(/^models\//, ''));
+        default:
+          return [];
+      }
+    }
+
+    // OpenRouter's key-check endpoint doesn't return models — fetch its
+    // public (no-auth) model catalog separately. Best-effort.
+    async function fetchOpenRouterModels() {
+      try {
+        const res = await CapacitorHttp.get({ url: 'https://openrouter.ai/api/v1/models' });
+        return (res.data?.data || []).map(m => m.id).sort();
+      } catch (_) { return []; }
+    }
+
     function parseAIResponse(provider, parsed) {
       let text = '';
       if (provider === 'anthropic') {
@@ -194,6 +236,24 @@ You are a coding assistant for children aged 6-12 using MakeCode Arcade. These r
         const { url, headers, data } = buildAIRequest(provider, config, messages, safeSystemPrompt);
         const res = await CapacitorHttp.post({ url, headers, data });
         return parseAIResponse(provider, res.data);
+      },
+
+      async testApiKey({ provider, apiKey }) {
+        if (!apiKey) return { ok: false, error: 'No API key entered' };
+        try {
+          const { url, headers } = buildTestKeyRequest(provider, apiKey);
+          const res = await CapacitorHttp.get({ url, headers });
+          if (res.status < 200 || res.status >= 300) {
+            const error = res.data?.error?.message || res.data?.error?.type || `HTTP ${res.status}`;
+            return { ok: false, error };
+          }
+          const models = provider === 'openrouter'
+            ? await fetchOpenRouterModels()
+            : extractModelIds(provider, res.data || {});
+          return { ok: true, models };
+        } catch (e) {
+          return { ok: false, error: e.message || String(e) };
+        }
       },
 
       // ── Settings ─────────────────────────────────────────────────────────────
@@ -302,6 +362,7 @@ You are a coding assistant for children aged 6-12 using MakeCode Arcade. These r
     isElectron: false,
     isMobile: false,
     aiRequest: async () => ({ text: 'Platform not detected — run in Electron or Capacitor.', raw: {} }),
+    testApiKey: async () => ({ ok: false, error: 'Platform not detected — run in Electron or Capacitor.' }),
     settingsGet: async () => ({}),
     settingsSet: async () => true,
     convList: async () => [],

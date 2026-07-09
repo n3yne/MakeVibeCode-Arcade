@@ -28,13 +28,6 @@ Key MakeCode Arcade APIs:
 - game.onUpdate(() => { })
 - sprites.onOverlap(SpriteKind.A, SpriteKind.B, (a, b) => { })`;
 
-const MODEL_HINTS = {
-  anthropic: 'e.g. claude-sonnet-4-6, claude-opus-4-8, claude-haiku-4-5-20251001',
-  openai: 'e.g. gpt-4o, gpt-4o-mini, o1-mini',
-  google: 'e.g. gemini-3.1-flash-lite (free tier), gemini-3.1-pro',
-  openrouter: 'e.g. anthropic/claude-sonnet-4-6, openai/gpt-4o, google/gemini-3.1-flash-lite',
-};
-
 const MAX_ERROR_ITERATIONS = 3;
 const ERROR_SETTLE_MS = 2500;
 
@@ -73,9 +66,9 @@ const btnCopyGeminiUrl = document.getElementById('btn-copy-gemini-url');
 const btnOpenGeminiUrl = document.getElementById('btn-open-gemini-url');
 const helpGeminiUrl = document.getElementById('help-gemini-url');
 const helpCopyFeedback = document.getElementById('help-copy-feedback');
-const btnCopyGeminiModel = document.getElementById('btn-copy-gemini-model');
-const helpGeminiModel = document.getElementById('help-gemini-model');
-const helpModelCopyFeedback = document.getElementById('help-model-copy-feedback');
+const btnLoadModels = document.getElementById('btn-load-models');
+const apikeyTestStatus = document.getElementById('apikey-test-status');
+const settingModelSelect = document.getElementById('setting-model-select');
 const aiPanel = document.getElementById('ai-panel');
 const codeContextBar = document.getElementById('code-context-bar');
 const contextLabel = document.getElementById('context-label');
@@ -214,9 +207,6 @@ async function copyToClipboard(text, feedbackEl) {
 btnCopyGeminiUrl.addEventListener('click', () =>
   copyToClipboard(helpGeminiUrl.textContent.trim(), helpCopyFeedback));
 
-btnCopyGeminiModel.addEventListener('click', () =>
-  copyToClipboard(helpGeminiModel.textContent.trim(), helpModelCopyFeedback));
-
 btnOpenGeminiUrl.addEventListener('click', () => {
   window.platform.openExternal(helpGeminiUrl.textContent.trim());
 });
@@ -224,24 +214,112 @@ btnOpenGeminiUrl.addEventListener('click', () => {
 function openSettings() {
   document.getElementById('setting-provider').value = settings.provider;
   document.getElementById('setting-apikey').value = settings.apiKey;
-  document.getElementById('setting-model').value = settings.model;
   document.getElementById('setting-system-prompt').value = settings.systemPrompt;
-  updateModelHint(settings.provider);
+  resetModelDropdown(settings.model);
+  clearApiKeyTestStatus();
   settingsModal.classList.remove('hidden');
 }
 
 function closeSettings() { settingsModal.classList.add('hidden'); }
 
-document.getElementById('setting-provider').addEventListener('change', e => updateModelHint(e.target.value));
+document.getElementById('setting-provider').addEventListener('change', () => {
+  clearApiKeyTestStatus();
+  resetModelDropdown('');
+});
+document.getElementById('setting-apikey').addEventListener('input', () => {
+  clearApiKeyTestStatus();
+  resetModelDropdown('');
+});
 
-function updateModelHint(provider) {
-  document.getElementById('model-hint').textContent = MODEL_HINTS[provider] || '';
+function clearApiKeyTestStatus() {
+  apikeyTestStatus.textContent = '';
+  apikeyTestStatus.classList.remove('status-ok', 'status-error');
 }
+
+// Resets the dropdown to just "— Use default —", plus the currently saved
+// model (if any) so switching Settings back open doesn't lose it — full
+// list is only fetched by clicking Load Models.
+function resetModelDropdown(currentModel) {
+  settingModelSelect.innerHTML = '';
+  const defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = '— Use default —';
+  settingModelSelect.appendChild(defaultOpt);
+  if (currentModel) {
+    const opt = document.createElement('option');
+    opt.value = currentModel;
+    opt.textContent = `${currentModel} (current)`;
+    settingModelSelect.appendChild(opt);
+  }
+  settingModelSelect.value = currentModel || '';
+  document.getElementById('model-hint').textContent =
+    'Click Load Models above to see available models for this provider.';
+}
+
+function populateModelDropdown(models) {
+  if (!models || models.length === 0) {
+    resetModelDropdown('');
+    document.getElementById('model-hint').textContent =
+      'No models returned for this provider — you can still use the default.';
+    return;
+  }
+  const previousValue = settingModelSelect.value;
+  settingModelSelect.innerHTML = '';
+  const defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = '— Use default —';
+  settingModelSelect.appendChild(defaultOpt);
+  models.forEach(id => {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = id;
+    settingModelSelect.appendChild(opt);
+  });
+  settingModelSelect.value = models.includes(previousValue) ? previousValue : '';
+  document.getElementById('model-hint').textContent = `${models.length} models available.`;
+}
+
+btnLoadModels.addEventListener('click', async () => {
+  const provider = document.getElementById('setting-provider').value;
+  const apiKey = document.getElementById('setting-apikey').value.trim();
+
+  clearApiKeyTestStatus();
+  if (!apiKey) {
+    apikeyTestStatus.textContent = 'Enter an API key first.';
+    apikeyTestStatus.classList.add('status-error');
+    return;
+  }
+
+  btnLoadModels.disabled = true;
+  btnLoadModels.textContent = 'Loading…';
+  apikeyTestStatus.textContent = 'Checking connection…';
+
+  try {
+    const result = await window.platform.testApiKey({ provider, apiKey });
+    if (result.ok) {
+      const modelCount = result.models ? result.models.length : 0;
+      apikeyTestStatus.textContent = modelCount > 0
+        ? `✓ Connected — ${modelCount} models loaded below`
+        : '✓ Connected successfully';
+      apikeyTestStatus.classList.add('status-ok');
+      populateModelDropdown(result.models);
+    } else {
+      apikeyTestStatus.textContent = `✗ ${result.error || 'Connection failed'}`;
+      apikeyTestStatus.classList.add('status-error');
+    }
+  } catch (e) {
+    apikeyTestStatus.textContent = `✗ ${e.message || 'Connection failed'}`;
+    apikeyTestStatus.classList.add('status-error');
+  } finally {
+    btnLoadModels.disabled = false;
+    btnLoadModels.textContent = 'Load Models';
+  }
+});
 
 btnSaveSettings.addEventListener('click', async () => {
   settings.provider = document.getElementById('setting-provider').value;
   settings.apiKey = document.getElementById('setting-apikey').value.trim();
-  settings.model = document.getElementById('setting-model').value.trim();
+  settings.model = settingModelSelect.value;
   settings.systemPrompt = document.getElementById('setting-system-prompt').value.trim() || DEFAULT_SYSTEM_PROMPT;
   await window.platform.settingsSet(settings);
   closeSettings();

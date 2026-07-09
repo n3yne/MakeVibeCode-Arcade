@@ -157,12 +157,18 @@
         </div>
         <div class="setting-group">
           <label>API Key</label>
-          <input type="password" id="setting-apikey" placeholder="Enter your API key...">
+          <div class="api-key-row">
+            <input type="password" id="setting-apikey" placeholder="Enter your API key...">
+            <button type="button" id="btn-load-models" class="small-btn">Load Models</button>
+          </div>
+          <small id="apikey-test-status" class="hint"></small>
         </div>
         <div class="setting-group">
           <label>Model</label>
-          <input type="text" id="setting-model" placeholder="Leave blank for default">
-          <small id="model-hint" class="hint"></small>
+          <select id="setting-model-select" aria-label="Available models">
+            <option value="">— Use default —</option>
+          </select>
+          <small id="model-hint" class="hint">Click Load Models above to see available models for this provider.</small>
         </div>
         <div class="setting-group">
           <label>System Prompt</label>
@@ -220,18 +226,10 @@
             <li>In MakeVibeCode Arcade, click the <strong>gear icon</strong> (Settings) in the top-right toolbar.</li>
             <li>Set <strong>AI Provider</strong> to <strong>Google (Gemini)</strong>.</li>
             <li>Paste your key into the <strong>API Key</strong> field.</li>
+            <li>Click <strong>Load Models</strong> next to the API Key field — this checks your key works and fetches the list of available models.</li>
             <li>
-              Leave <strong>Model</strong> as
-              <span class="help-url-group">
-                <code id="help-gemini-model">gemini-3.1-flash-lite</code>
-                <button type="button" id="btn-copy-gemini-model" class="icon-btn" title="Copy model name">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <rect x="9" y="9" width="13" height="13" rx="2"/>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                  </svg>
-                </button>
-                <span id="help-model-copy-feedback" class="hint hidden">Copied!</span>
-              </span>
+              From the <strong>Model</strong> dropdown, choose
+              <code id="help-gemini-model">gemini-3.1-flash-lite</code>
               — it's fast and free for a large number of requests.
             </li>
             <li>Click <strong>Save Settings</strong>. You're ready to start chatting with the AI!</li>

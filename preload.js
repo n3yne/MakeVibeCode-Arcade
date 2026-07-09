@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   aiRequest: (payload) => ipcRenderer.invoke('ai-request', payload),
+  testApiKey: (payload) => ipcRenderer.invoke('test-api-key', payload),
   settingsGet: () => ipcRenderer.invoke('settings-get'),
   settingsSet: (data) => ipcRenderer.invoke('settings-set', data),
   convList: () => ipcRenderer.invoke('conv-list'),
