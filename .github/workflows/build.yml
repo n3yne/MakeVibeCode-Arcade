@@ -18,8 +18,23 @@
 #
 #   Without these four secrets, the iOS job still runs but produces a
 #   simulator-only build to verify the pipeline compiles successfully.
-#   Change the export method from "development" to "app-store" when you're
-#   ready to submit to TestFlight / App Store.
+#
+# ── Secrets to also auto-upload the IPA to TestFlight ────────────────────────
+#   (Requires the four IOS_* secrets above to be set — this uploads the same
+#   signed IPA to App Store Connect via an App Store Connect API key.)
+#   APP_STORE_CONNECT_ISSUER_ID   App Store Connect → Users and Access → Integrations
+#                                 → Keys tab — the "Issuer ID" shown at the top (a UUID)
+#   APP_STORE_CONNECT_KEY_ID      Same Keys tab → the Key ID column for your API key
+#   APP_STORE_CONNECT_API_KEY     The full contents of the downloaded AuthKey_XXXX.p8
+#                                 file, pasted as-is (multi-line PEM text, no encoding
+#                                 needed — GitHub secrets support multi-line values)
+#     How to create the key: App Store Connect → Users and Access → Integrations →
+#     Keys tab → Generate API Key → Access: "App Manager" or higher → Download
+#     (the .p8 can only be downloaded once — save it somewhere safe)
+#
+#   Without these three secrets, the IPA still builds and is signed, but is
+#   only uploaded as a GitHub Actions artifact — you'd upload it to App
+#   Store Connect manually (e.g. via Transporter.app).
 #
 # ── Optional secrets for signed desktop builds ───────────────────────────────
 #   WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD   Windows EV/OV certificate (.pfx, base64)
@@ -188,6 +203,7 @@ jobs:
     runs-on: macos-latest
     env:
       HAS_IOS_CERTS: ${{ secrets.IOS_CERTIFICATE_P12 != '' }}
+      HAS_APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -390,6 +406,30 @@ jobs:
         with:
           name: ios-signed
           path: ios/build/export/*.ipa
+
+      - name: Resolve exported IPA path
+        if: env.HAS_IOS_CERTS == 'true' && env.HAS_APP_STORE_CONNECT_KEY == 'true'
+        run: |
+          IPA_PATH=$(find ios/build/export -maxdepth 1 -name "*.ipa" | head -1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "No .ipa found in ios/build/export"
+            exit 1
+          fi
+          echo "IPA_PATH=$IPA_PATH" >> $GITHUB_ENV
+          echo "Found: $IPA_PATH"
+
+      # Uploads to App Store Connect via its API — the build then appears in
+      # TestFlight (under Processing, then ready for testers) a few minutes later.
+      # Requires an App Store Connect API key — see secrets docs at the top of this file.
+      - name: Upload to TestFlight
+        if: env.HAS_IOS_CERTS == 'true' && env.HAS_APP_STORE_CONNECT_KEY == 'true'
+        uses: apple-actions/upload-testflight-build@v5
+        with:
+          app-path: ${{ env.IPA_PATH }}
+          app-type: ios
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
 
   # ── Attach all artifacts to the GitHub Release ───────────────────────────────
   release:
