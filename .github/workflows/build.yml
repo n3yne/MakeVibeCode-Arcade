@@ -1,7 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Builds MakeVibeCode Arcade for all 5 platforms and uploads artifacts.
 #
-# Triggers: push to main | any GitHub Release | manual "Run workflow"
+# Triggers: creating a GitHub Release | manual "Run workflow"
+# (Plain pushes to main no longer trigger a build — this is a 5-platform build,
+# so it only runs when you're actually cutting a release, or on demand.)
 #
 # ── Secrets for signed iOS IPA ───────────────────────────────────────────────
 #   IOS_CERTIFICATE_P12          Base64-encoded distribution cert (.p12)
@@ -27,8 +29,6 @@
 name: Build All Platforms
 
 on:
-  push:
-    branches: [main]
   release:
     types: [created]
   workflow_dispatch:
