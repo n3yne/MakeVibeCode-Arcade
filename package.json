@@ -1,6 +1,6 @@
 {
   "name": "makevibecode-arcade",
-  "version": "1.0.0",
+  "version": "0.0.2",
   "description": "AI-powered MakeCode Arcade wrapper with vibe coding support",
   "main": "main.js",
   "scripts": {

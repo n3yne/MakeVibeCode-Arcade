@@ -127,7 +127,7 @@ You are a coding assistant for children aged 6-12 using MakeCode Arcade. These r
             },
           };
         case 'google': {
-          const googleModel = config.model || 'gemini-2.0-flash';
+          const googleModel = config.model || 'gemini-3.1-flash-lite';
           return {
             url: `https://generativelanguage.googleapis.com/v1beta/models/${googleModel}:generateContent?key=${config.apiKey}`,
             headers: { 'Content-Type': 'application/json' },
@@ -286,6 +286,13 @@ You are a coding assistant for children aged 6-12 using MakeCode Arcade. These r
           try { return JSON.parse(result.result); } catch (_) { return result.result; }
         } catch (_) { return false; }
       },
+
+      // ── External links ──────────────────────────────────────────────────────
+      async openExternal(url) {
+        if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false;
+        window.open(url, '_blank');
+        return true;
+      },
     };
     return;
   }
@@ -304,5 +311,9 @@ You are a coding assistant for children aged 6-12 using MakeCode Arcade. These r
     initArcadeView: () => {},
     wvRun: async () => null,
     wvEval: async () => false,
+    openExternal: async (url) => {
+      if (typeof url === 'string' && /^https?:\/\//i.test(url)) window.open(url, '_blank');
+      return true;
+    },
   };
 })();

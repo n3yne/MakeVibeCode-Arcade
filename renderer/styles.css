@@ -462,6 +462,36 @@ webview, #arcade-webview {
 .setting-group textarea { resize: vertical; }
 .hint { font-size: 11px; color: var(--text-muted); }
 
+/* === Help modal === */
+.help-text { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin: 0; }
+.help-steps { display: flex; flex-direction: column; gap: 8px; padding-left: 20px; margin: 4px 0; }
+.help-steps li { font-size: 13px; color: var(--text); line-height: 1.5; }
+.help-url-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  vertical-align: middle;
+}
+.help-url-group code {
+  font-family: monospace;
+  font-size: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--accent);
+}
+.help-url-group .icon-btn { padding: 2px; }
+.help-url-group .icon-btn.copied { color: var(--accent); }
+.help-steps code {
+  font-family: monospace;
+  font-size: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
 /* Scrollbar for modal */
 .modal-body::-webkit-scrollbar { width: 5px; }
 

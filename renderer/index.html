@@ -32,6 +32,13 @@
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
         </button>
+        <button id="btn-help" class="toolbar-btn" title="Help">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -164,6 +171,80 @@
       </div>
       <div class="modal-footer">
         <button id="btn-save-settings" class="primary-btn">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Help — Getting Started</h2>
+        <button id="btn-close-help" class="icon-btn large">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label>Setting up a free Google Gemini API key</label>
+          <p class="help-text">
+            MakeVibeCode Arcade uses an AI model to help write your game code. Google's
+            Gemini models offer a free tier with a generous number of requests, so that's
+            the quickest way to get started.
+          </p>
+          <ol class="help-steps">
+            <li>
+              Go to
+              <span class="help-url-group">
+                <code id="help-gemini-url">https://aistudio.google.com/apikey</code>
+                <button type="button" id="btn-copy-gemini-url" class="icon-btn" title="Copy link">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </button>
+                <button type="button" id="btn-open-gemini-url" class="icon-btn" title="Open in browser">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                </button>
+                <span id="help-copy-feedback" class="hint hidden">Copied!</span>
+              </span>
+              in your web browser.
+            </li>
+            <li>Sign in with your Google account (create one for free if you don't have one).</li>
+            <li>Click <strong>Create API key</strong>.</li>
+            <li>Choose <strong>Create API key in new project</strong> (or pick an existing project if you have one).</li>
+            <li>Copy the API key that appears — it's a long string of letters and numbers.</li>
+            <li>In MakeVibeCode Arcade, click the <strong>gear icon</strong> (Settings) in the top-right toolbar.</li>
+            <li>Set <strong>AI Provider</strong> to <strong>Google (Gemini)</strong>.</li>
+            <li>Paste your key into the <strong>API Key</strong> field.</li>
+            <li>
+              Leave <strong>Model</strong> as
+              <span class="help-url-group">
+                <code id="help-gemini-model">gemini-3.1-flash-lite</code>
+                <button type="button" id="btn-copy-gemini-model" class="icon-btn" title="Copy model name">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </button>
+                <span id="help-model-copy-feedback" class="hint hidden">Copied!</span>
+              </span>
+              — it's fast and free for a large number of requests.
+            </li>
+            <li>Click <strong>Save Settings</strong>. You're ready to start chatting with the AI!</li>
+          </ol>
+          <p class="help-text">
+            Keep your API key private — don't share it or paste it anywhere except this app's
+            Settings panel. If you ever think it's been exposed, you can delete it and create
+            a new one at the same Google AI Studio page.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-close-help-footer" class="primary-btn">Got it</button>
       </div>
     </div>
   </div>

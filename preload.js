@@ -8,4 +8,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   convLoad: (id) => ipcRenderer.invoke('conv-load', id),
   convSave: (conv) => ipcRenderer.invoke('conv-save', conv),
   convDelete: (id) => ipcRenderer.invoke('conv-delete', id),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
 });

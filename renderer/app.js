@@ -31,8 +31,8 @@ Key MakeCode Arcade APIs:
 const MODEL_HINTS = {
   anthropic: 'e.g. claude-sonnet-4-6, claude-opus-4-8, claude-haiku-4-5-20251001',
   openai: 'e.g. gpt-4o, gpt-4o-mini, o1-mini',
-  google: 'e.g. gemini-2.0-flash, gemini-1.5-pro',
-  openrouter: 'e.g. anthropic/claude-sonnet-4-6, openai/gpt-4o, google/gemini-2.0-flash',
+  google: 'e.g. gemini-3.1-flash-lite (free tier), gemini-3.1-pro',
+  openrouter: 'e.g. anthropic/claude-sonnet-4-6, openai/gpt-4o, google/gemini-3.1-flash-lite',
 };
 
 const MAX_ERROR_ITERATIONS = 3;
@@ -40,9 +40,9 @@ const ERROR_SETTLE_MS = 2500;
 
 // ── State ──────────────────────────────────────────────────────────────────
 let settings = {
-  provider: 'anthropic',
+  provider: 'google',
   apiKey: '',
-  model: '',
+  model: 'gemini-3.1-flash-lite',
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
 };
 let conversationHistory = [];
@@ -65,6 +65,17 @@ const btnSettings = document.getElementById('btn-settings');
 const btnCloseSettings = document.getElementById('btn-close-settings');
 const btnSaveSettings = document.getElementById('btn-save-settings');
 const settingsModal = document.getElementById('settings-modal');
+const btnHelp = document.getElementById('btn-help');
+const btnCloseHelp = document.getElementById('btn-close-help');
+const btnCloseHelpFooter = document.getElementById('btn-close-help-footer');
+const helpModal = document.getElementById('help-modal');
+const btnCopyGeminiUrl = document.getElementById('btn-copy-gemini-url');
+const btnOpenGeminiUrl = document.getElementById('btn-open-gemini-url');
+const helpGeminiUrl = document.getElementById('help-gemini-url');
+const helpCopyFeedback = document.getElementById('help-copy-feedback');
+const btnCopyGeminiModel = document.getElementById('btn-copy-gemini-model');
+const helpGeminiModel = document.getElementById('help-gemini-model');
+const helpModelCopyFeedback = document.getElementById('help-model-copy-feedback');
 const aiPanel = document.getElementById('ai-panel');
 const codeContextBar = document.getElementById('code-context-bar');
 const contextLabel = document.getElementById('context-label');
@@ -164,7 +175,7 @@ function initMobileTabs() {
 function addWelcomeMessage() {
   addMessage('assistant',
     '📋 Welcome to MakeVibeCode Arcade! Open a project and type what you want to build.\n' +
-    '▶ Go to Settings (gear icon) to add your AI API key first.\n\n' +
+    '▶ Go to Settings (gear icon) to add your AI API key first — click Help (?) for step-by-step instructions on getting a free one.\n\n' +
     '---\n\n' +
     'Each message will automatically: read your code → ask the AI → apply changes → fix errors → restore your view.\n\n' +
     'Use **Get Code** to manually pull the current editor contents into context.'
@@ -175,6 +186,40 @@ function addWelcomeMessage() {
 btnSettings.addEventListener('click', openSettings);
 btnCloseSettings.addEventListener('click', closeSettings);
 settingsModal.querySelector('.modal-backdrop').addEventListener('click', closeSettings);
+
+// ── Help ───────────────────────────────────────────────────────────────────
+btnHelp.addEventListener('click', () => helpModal.classList.remove('hidden'));
+btnCloseHelp.addEventListener('click', () => helpModal.classList.add('hidden'));
+btnCloseHelpFooter.addEventListener('click', () => helpModal.classList.add('hidden'));
+helpModal.querySelector('.modal-backdrop').addEventListener('click', () => helpModal.classList.add('hidden'));
+
+async function copyToClipboard(text, feedbackEl) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    // Fallback for environments without Clipboard API permission
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+  feedbackEl.classList.remove('hidden');
+  setTimeout(() => feedbackEl.classList.add('hidden'), 1500);
+}
+
+btnCopyGeminiUrl.addEventListener('click', () =>
+  copyToClipboard(helpGeminiUrl.textContent.trim(), helpCopyFeedback));
+
+btnCopyGeminiModel.addEventListener('click', () =>
+  copyToClipboard(helpGeminiModel.textContent.trim(), helpModelCopyFeedback));
+
+btnOpenGeminiUrl.addEventListener('click', () => {
+  window.platform.openExternal(helpGeminiUrl.textContent.trim());
+});
 
 function openSettings() {
   document.getElementById('setting-provider').value = settings.provider;

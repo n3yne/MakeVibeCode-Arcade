@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain, session, shell } = require('electron');
 const path = require('path');
 const https = require('https');
 const http = require('http');
@@ -203,7 +203,7 @@ ipcMain.handle('ai-request', async (event, { provider, config, messages, systemP
           systemInstruction: { parts: [{ text: safeSystemPrompt }] },
           generationConfig: { temperature: 0.7 },
         });
-        const googleModel = config.model || 'gemini-2.0-flash';
+        const googleModel = config.model || 'gemini-3.1-flash-lite';
         options = {
           hostname: 'generativelanguage.googleapis.com',
           path: `/v1beta/models/${googleModel}:generateContent?key=${config.apiKey}`,
@@ -290,6 +290,16 @@ const Store = (() => {
 
 ipcMain.handle('settings-get', () => Store.get());
 ipcMain.handle('settings-set', (_, data) => { Store.set(data); return true; });
+
+// Only allow opening http(s) links in the user's default browser — never
+// arbitrary protocols (file:, javascript:, etc.) from renderer-controlled input.
+ipcMain.handle('open-external', (_, url) => {
+  if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+    shell.openExternal(url);
+    return true;
+  }
+  return false;
+});
 
 // Conversation storage
 const Conversations = (() => {
