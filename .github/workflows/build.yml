@@ -226,6 +226,44 @@ jobs:
       - name: Generate iOS project
         run: npx cap add ios
 
+      # The MakeCodeBridge overlay WebView is inserted BEHIND the Capacitor
+      # bridge's own WKWebView (see native-plugins/ios/MakeCodeBridgePlugin.swift
+      # + native-plugins/README.md). For it to be visible at all, the bridge
+      # WebView itself must be made transparent so renderer/styles.css's
+      # transparent #arcade-container hole shows the overlay through it.
+      # This has to be patched into the freshly generated AppDelegate.swift on
+      # every build since ios/ isn't committed to the repo (see .gitignore).
+      - name: Make bridge WebView transparent (for MakeCodeBridge overlay)
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          p = pathlib.Path("ios/App/App/AppDelegate.swift")
+          src = p.read_text()
+          old = "    func applicationDidBecomeActive(_ application: UIApplication) {\n"
+          old += "        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.\n"
+          old += "    }"
+          new = "    func applicationDidBecomeActive(_ application: UIApplication) {\n"
+          new += "        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.\n"
+          new += "\n"
+          new += "        // Make the bridge WebView transparent so MakeCodeBridge's native overlay\n"
+          new += "        // WebView (inserted behind it) shows through the #arcade-container hole\n"
+          new += "        // in renderer/styles.css. See native-plugins/README.md.\n"
+          new += "        if let vc = window?.rootViewController as? CAPBridgeViewController, vc.webView?.isOpaque != false {\n"
+          new += "            vc.webView?.isOpaque = false\n"
+          new += "            vc.webView?.backgroundColor = .clear\n"
+          new += "            vc.webView?.scrollView.backgroundColor = .clear\n"
+          new += "            vc.view.backgroundColor = .clear\n"
+          new += "        }\n"
+          new += "    }"
+          if old not in src:
+              raise SystemExit(
+                  "AppDelegate.swift didn't match the expected Capacitor template -- "
+                  "it may have changed shape. Update the patch in build.yml."
+              )
+          p.write_text(src.replace(old, new, 1))
+          print("Patched AppDelegate.swift for WebView transparency")
+          PY
+
       # Copy the MakeCodeBridge native plugin sources into the new Xcode project
       - name: Copy MakeCodeBridge plugin sources
         run: |
