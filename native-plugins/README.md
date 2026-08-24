@@ -30,7 +30,7 @@ After running `npx cap add ios`:
 ## Android installation
 
 The Java plugin (`MakeCodeBridgePlugin.java`) is already placed in
-`android/app/src/main/java/com/pghnetworks/makevibecodearcade/plugins/`
+`android/app/src/main/java/com/esscey/makevibecodearcade/plugins/`
 and `MainActivity.java` is already updated to register it.
 
 If you regenerate the Android platform (`npx cap add android` on a clean tree):
@@ -39,7 +39,7 @@ If you regenerate the Android platform (`npx cap add android` on a clean tree):
 
 2. Re-add the `registerPlugin` call to `MainActivity.java`:
    ```java
-   import com.pghnetworks.makevibecodearcade.plugins.MakeCodeBridgePlugin;
+   import com.esscey.makevibecodearcade.plugins.MakeCodeBridgePlugin;
 
    public class MainActivity extends BridgeActivity {
        @Override

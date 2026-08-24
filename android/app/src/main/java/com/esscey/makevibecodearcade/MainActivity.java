@@ -1,9 +1,9 @@
-package com.pghnetworks.makevibecodearcade;
+package com.esscey.makevibecodearcade;
 
 import android.graphics.Color;
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
-import com.pghnetworks.makevibecodearcade.plugins.MakeCodeBridgePlugin;
+import com.esscey.makevibecodearcade.plugins.MakeCodeBridgePlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override

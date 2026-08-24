@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.pghnetworks.makevibecodearcade"
+    namespace = "com.esscey.makevibecodearcade"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.pghnetworks.makevibecodearcade"
+        applicationId "com.esscey.makevibecodearcade"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 3
