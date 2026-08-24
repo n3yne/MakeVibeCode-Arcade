@@ -409,6 +409,16 @@ jobs:
       - name: Archive iOS app (signed)
         if: env.HAS_IOS_CERTS == 'true'
         run: |
+          # ios/ is regenerated fresh by `npx cap add ios` every run (it isn't
+          # committed — see .gitignore), so CURRENT_PROJECT_VERSION always
+          # starts back at Capacitor's default of 1. App Store Connect hard-
+          # rejects any upload whose CFBundleVersion isn't strictly higher
+          # than every build ever uploaded before for this app, so without
+          # this override, only the very first successful TestFlight upload
+          # can ever succeed — every one after it 409s with
+          # ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE. github.run_number
+          # auto-increments on every run of this workflow, so it's always
+          # higher than the last one that got this far.
           xcodebuild \
             $XCODE_REF \
             -scheme App \
@@ -420,6 +430,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE="$PROVISIONING_PROFILE_UUID" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             archive
 
       - name: Export IPA
