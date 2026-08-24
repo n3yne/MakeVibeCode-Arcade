@@ -619,11 +619,17 @@ webview, #arcade-webview {
 .mobile-tab.active { color: var(--accent); }
 .mobile-tab svg { flex-shrink: 0; }
 
-/* Mobile-specific overrides (set on body when Capacitor is detected) */
+/* Mobile-specific overrides (set on body when Capacitor is detected).
+   Visibility of #arcade-container / #ai-panel is controlled entirely by the
+   .hidden class, toggled in app.js's initMobileTabs() tab handlers. */
 .mobile #mobile-tabs { display: flex; }
 .mobile #toolbar { -webkit-app-region: none; }
 .mobile #resizer { display: none; }
-.mobile #arcade-container { display: none; }
+
+/* Transparent so the MakeCodeBridge native overlay WebView — inserted behind
+   the Capacitor bridge WebView by native-plugins/{ios,android} — can show
+   through instead of being hidden behind an opaque background. */
+.mobile #arcade-container { background: transparent; }
 
 .mobile #content { flex-direction: column; }
 
@@ -632,7 +638,3 @@ webview, #arcade-webview {
   border-left: none;
   padding-bottom: calc(56px + env(safe-area-inset-bottom, 0));
 }
-
-/* When Editor tab is active on mobile, make it full-height */
-.mobile.editor-tab #ai-panel { display: none !important; }
-.mobile.editor-tab #arcade-container { display: flex !important; }

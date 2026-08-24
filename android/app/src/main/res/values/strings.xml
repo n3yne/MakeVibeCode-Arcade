@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">MakeVibeCode Arcade</string>
     <string name="title_activity_main">MakeVibeCode Arcade</string>
-    <string name="package_name">com.pghnetworks.makevibecodearcade</string>
-    <string name="custom_url_scheme">com.pghnetworks.makevibecodearcade</string>
+    <string name="package_name">com.esscey.makevibecodearcade</string>
+    <string name="custom_url_scheme">com.esscey.makevibecodearcade</string>
 </resources>

@@ -427,6 +427,8 @@ btnRenameConv.addEventListener('click', () => {
   convRenameInput.select();
 });
 
+let renameCancelled = false;
+
 async function commitRename() {
   const name = convRenameInput.value.trim();
   convRenameInput.classList.add('hidden');
@@ -439,13 +441,19 @@ async function commitRename() {
 }
 
 convRenameInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+  if (e.key === 'Enter') { e.preventDefault(); convRenameInput.blur(); }
   if (e.key === 'Escape') {
+    // Hiding the input below forces a blur — set the flag first so the blur
+    // handler skips committing whatever was typed and just cancels instead.
+    renameCancelled = true;
     convRenameInput.classList.add('hidden');
     convSelect.classList.remove('hidden');
   }
 });
-convRenameInput.addEventListener('blur', commitRename);
+convRenameInput.addEventListener('blur', () => {
+  if (renameCancelled) { renameCancelled = false; return; }
+  commitRename();
+});
 
 btnDeleteConv.addEventListener('click', async () => {
   if (!currentConv) return;
@@ -892,7 +900,6 @@ async function vibeCodingPipeline(userText) {
       if (wasOnBlocks) await restoreBlocks(status);
       return;
     }
-    attachedCode = newCode;
     attachedCode = newCode;
 
     // Error iteration loop

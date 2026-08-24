@@ -1,4 +1,4 @@
-package com.pghnetworks.makevibecodearcade.plugins
+package com.esscey.makevibecodearcade.plugins
 
 import android.annotation.SuppressLint
 import android.view.ViewGroup
