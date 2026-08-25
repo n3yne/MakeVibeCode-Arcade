@@ -39,22 +39,31 @@ public class MakeCodeBridgePlugin: CAPPlugin, WKNavigationDelegate, WKScriptMess
             wv.isOpaque = false
             wv.backgroundColor = .clear
 
-            // Size: full screen under the status bar
-            guard let rootView = self.bridge?.viewController?.view else {
-                call.reject("No root view")
+            // Insert into the WINDOW, not viewController.view — Capacitor's
+            // CAPBridgeViewController sets `view = webView` in loadView()
+            // (see node_modules/@capacitor/ios/.../CAPBridgeViewController.swift),
+            // so viewController.view IS the bridge's own WKWebView, not a
+            // separate container. Inserting a subview into a WKWebView puts it
+            // inside WebKit's own content hierarchy with no defined stacking
+            // relative to the page WebKit is rendering, which is why the CSS
+            // transparency trick alone could never reveal it. The window is a
+            // real, distinct parent that the bridge webview sits inside as a
+            // sibling, so inserting behind it there actually works.
+            guard let window = self.bridge?.viewController?.view.window else {
+                call.reject("No window")
                 return
             }
-            let safeTop = rootView.safeAreaInsets.top
+            let safeTop = window.safeAreaInsets.top
             let frame = CGRect(
                 x: 0,
                 y: safeTop,
-                width: rootView.bounds.width,
-                height: rootView.bounds.height - safeTop - 56 // 56 = tab bar height
+                width: window.bounds.width,
+                height: window.bounds.height - safeTop - 56 // 56 = tab bar height
             )
             wv.frame = frame
             wv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
-            rootView.insertSubview(wv, at: 0)
+            window.insertSubview(wv, at: 0)
             self.arcadeWebView = wv
             wv.load(URLRequest(url: url))
             call.resolve()
