@@ -261,6 +261,9 @@ jobs:
           new += "            vc.webView?.backgroundColor = .clear\n"
           new += "            vc.webView?.scrollView.backgroundColor = .clear\n"
           new += "            vc.view.backgroundColor = .clear\n"
+          new += "            if #available(iOS 15.0, *) {\n"
+          new += "                vc.webView?.underPageBackgroundColor = .clear\n"
+          new += "            }\n"
           new += "        }\n"
           new += "    }"
           if old not in src:
