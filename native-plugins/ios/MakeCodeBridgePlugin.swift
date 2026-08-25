@@ -68,8 +68,24 @@ public class MakeCodeBridgePlugin: CAPPlugin, WKNavigationDelegate, WKScriptMess
 
             window.insertSubview(wv, at: 0)
             self.arcadeWebView = wv
+
+            // DEBUG: surface what we actually computed/inserted, since none of
+            // this is visible without an Xcode console attached to the device.
+            self.notifyListeners("debug", data: [
+                "step": "inserted",
+                "windowBounds": "\(window.bounds)",
+                "webviewFrame": "\(frame)",
+                "windowSubviewCount": window.subviews.count,
+                "webviewIndexInWindow": window.subviews.firstIndex(of: wv) ?? -1,
+                "isHidden": wv.isHidden,
+                "alpha": wv.alpha,
+            ])
+
             wv.load(URLRequest(url: url))
-            call.resolve()
+            call.resolve([
+                "windowFound": true,
+                "frame": "\(frame)",
+            ])
         }
     }
 
@@ -156,9 +172,29 @@ public class MakeCodeBridgePlugin: CAPPlugin, WKNavigationDelegate, WKScriptMess
         }
     }
 
-    // MARK: - WKNavigationDelegate (optional — for future page-load events)
+    // MARK: - WKNavigationDelegate
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         notifyListeners("pageLoaded", data: ["url": webView.url?.absoluteString ?? ""])
+    }
+
+    // DEBUG: these two were previously unhandled, so a load failure (network,
+    // TLS, DNS — anything) was completely silent with no signal on either
+    // side. Wired up so a failed load actually surfaces instead of just
+    // looking identical to "loaded fine but hidden behind something opaque."
+    public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        notifyListeners("pageLoadFailed", data: [
+            "phase": "didFail",
+            "error": error.localizedDescription,
+            "code": (error as NSError).code,
+        ])
+    }
+
+    public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        notifyListeners("pageLoadFailed", data: [
+            "phase": "didFailProvisionalNavigation",
+            "error": error.localizedDescription,
+            "code": (error as NSError).code,
+        ])
     }
 }

@@ -126,6 +126,15 @@ function parseAIResponse(text) {
   return { summary: summaryLine, next: nextLine, detail };
 }
 
+// ── DEBUG: temporary on-device diagnostics for the MakeCode overlay issue ──
+// Surfaces native show()/pageLoaded/pageLoadFailed events (wired up in
+// platform.js) directly in the chat panel, since a TestFlight build has no
+// attached Xcode console. Remove once the overlay is confirmed working.
+window.__arcadeDebugLog = (msg) => {
+  console.log('[arcade-debug]', msg);
+  addMessage('assistant', `🔧 ${msg}`);
+};
+
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
   await window.platform.initArcadeView();
