@@ -38,6 +38,9 @@ public class MakeCodeBridgePlugin: CAPPlugin, WKNavigationDelegate, WKScriptMess
             wv.scrollView.bounces = false
             wv.isOpaque = false
             wv.backgroundColor = .clear
+            if #available(iOS 15.0, *) {
+                wv.underPageBackgroundColor = .clear
+            }
 
             // Insert into the WINDOW, not viewController.view — Capacitor's
             // CAPBridgeViewController sets `view = webView` in loadView()
