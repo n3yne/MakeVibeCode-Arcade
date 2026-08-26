@@ -53,9 +53,26 @@ PLUGIN_FILES.each do |filename|
   added += 1
 end
 
-if added > 0
+# MakeCodeBridgePlugin.m registers the plugin with Capacitor's bridge purely
+# via the CAP_PLUGIN Objective-C macro (a category read by runtime class
+# scanning) — nothing else in the app references that symbol directly, so
+# without -ObjC in the linker flags, the linker dead-strips it and
+# Capacitor.Plugins.MakeCodeBridge is silently undefined at JS runtime even
+# though the plugin compiles and links without any error.
+ldflags_changed = false
+app_target.build_configurations.each do |config|
+  ldflags = config.build_settings['OTHER_LDFLAGS']
+  ldflags = ldflags.nil? ? ['$(inherited)'] : Array(ldflags)
+  next if ldflags.include?('-ObjC')
+
+  ldflags << '-ObjC'
+  config.build_settings['OTHER_LDFLAGS'] = ldflags
+  ldflags_changed = true
+end
+
+if added > 0 || ldflags_changed
   project.save
-  puts "Saved #{PROJECT_PATH} (#{added} file(s) added)"
+  puts "Saved #{PROJECT_PATH} (#{added} file(s) added, -ObjC linker flag #{ldflags_changed ? 'added' : 'already present'})"
 else
-  puts "No changes needed — files already registered"
+  puts "No changes needed — files and linker flags already registered"
 end
