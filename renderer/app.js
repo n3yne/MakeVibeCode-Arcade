@@ -135,8 +135,10 @@ function parseAIResponse(text) {
 // before the user ever saw it. This overlay is independent of that and of
 // which tab is active, so it survives regardless of app lifecycle churn.
 // Remove once the overlay is confirmed working.
+window.__arcadeDebugMessages = [];
 window.__arcadeDebugLog = (msg) => {
   console.log('[arcade-debug]', msg);
+  window.__arcadeDebugMessages.push(msg);
   let panel = document.getElementById('arcade-debug-panel');
   if (!panel) {
     panel = document.createElement('div');
@@ -155,6 +157,18 @@ window.__arcadeDebugLog = (msg) => {
   panel.appendChild(line);
   panel.scrollTop = panel.scrollHeight;
 };
+
+// DEBUG: a native alert() is drawn by WebKit itself as a modal, entirely
+// independent of this page's own CSS/DOM/stacking context — so it can't be
+// hidden by whatever is hiding the fixed-position debug panel above (if
+// anything is). If this ALSO never appears, the JS on this build isn't
+// reaching this point at all, which points at a wrong/stale build rather
+// than a rendering bug in the panel itself. Remove alongside the panel once
+// the overlay issue is confirmed fixed.
+setTimeout(() => {
+  const msgs = window.__arcadeDebugMessages;
+  alert('[arcade-debug]\n' + (msgs.length ? msgs.join('\n') : '(no messages captured after 4s — init() may not have run)'));
+}, 4000);
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
