@@ -6,6 +6,7 @@
 // Either way, app.js only ever calls window.platform.* and is unaware of the runtime.
 
 (function () {
+ try {
   const IS_ELECTRON = typeof window.electronAPI !== 'undefined';
   const IS_CAPACITOR = !IS_ELECTRON && typeof window.Capacitor !== 'undefined';
 
@@ -401,4 +402,14 @@ You are a coding assistant for children aged 6-12 using MakeCode Arcade. These r
       return true;
     },
   };
+ } catch (e) {
+  // DEBUG: if anything above throws synchronously (e.g. Capacitor.Plugins.
+  // MakeCodeBridge being undefined because the native plugin never
+  // registered), window.platform is left completely unset with no other
+  // signal — app.js's alert() fallback reads this to report what happened
+  // instead of just seeing an undefined window.platform. Remove alongside
+  // the other temporary debug logging once the overlay issue is fixed.
+  window.__platformInitError = (e && (e.stack || e.message)) || String(e);
+  console.error('[platform.js] init failed:', e);
+ }
 })();

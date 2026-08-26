@@ -178,6 +178,7 @@ setTimeout(() => {
     'typeof window.electronAPI: ' + typeof window.electronAPI,
     'window.platform.isMobile: ' + (window.platform && window.platform.isMobile),
     'window.platform.isElectron: ' + (window.platform && window.platform.isElectron),
+    'platform.js init error: ' + (window.__platformInitError || '(none)'),
   ].join('\n');
   alert('[arcade-debug]\n' + diag + '\n---\n' + (msgs.length ? msgs.join('\n') : '(no messages captured after 4s)'));
 }, 4000);
