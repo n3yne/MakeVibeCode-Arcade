@@ -128,11 +128,32 @@ function parseAIResponse(text) {
 
 // ── DEBUG: temporary on-device diagnostics for the MakeCode overlay issue ──
 // Surfaces native show()/pageLoaded/pageLoadFailed events (wired up in
-// platform.js) directly in the chat panel, since a TestFlight build has no
-// attached Xcode console. Remove once the overlay is confirmed working.
+// platform.js) in a fixed overlay panel, since a TestFlight build has no
+// attached Xcode console. Deliberately NOT using the chat message list —
+// init()'s loadConversationList() does messagesEl.innerHTML = '' partway
+// through startup, which was silently wiping out anything logged there
+// before the user ever saw it. This overlay is independent of that and of
+// which tab is active, so it survives regardless of app lifecycle churn.
+// Remove once the overlay is confirmed working.
 window.__arcadeDebugLog = (msg) => {
   console.log('[arcade-debug]', msg);
-  addMessage('assistant', `🔧 ${msg}`);
+  let panel = document.getElementById('arcade-debug-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'arcade-debug-panel';
+    panel.style.cssText = [
+      'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:999999',
+      'max-height:45vh', 'overflow-y:auto', 'background:rgba(0,0,0,0.88)',
+      'color:#4f8', 'font:11px/1.4 monospace', 'padding:6px 8px',
+      'white-space:pre-wrap', 'word-break:break-word',
+      'border-bottom:2px solid #4f8', 'pointer-events:auto',
+    ].join(';');
+    document.body.appendChild(panel);
+  }
+  const line = document.createElement('div');
+  line.textContent = `[${new Date().toISOString().slice(11, 19)}] ${msg}`;
+  panel.appendChild(line);
+  panel.scrollTop = panel.scrollHeight;
 };
 
 // ── Init ───────────────────────────────────────────────────────────────────
