@@ -167,7 +167,19 @@ window.__arcadeDebugLog = (msg) => {
 // the overlay issue is confirmed fixed.
 setTimeout(() => {
   const msgs = window.__arcadeDebugMessages;
-  alert('[arcade-debug]\n' + (msgs.length ? msgs.join('\n') : '(no messages captured after 4s — init() may not have run)'));
+  // Zero messages means initArcadeView()'s own unconditional first line never
+  // ran, which can only happen if window.platform resolved to something
+  // other than the Capacitor implementation (see platform.js's IS_CAPACITOR
+  // check) — most likely because window.Capacitor wasn't defined yet when
+  // platform.js's IIFE ran, silently falling through to the no-op browser
+  // fallback stub. Report that state directly instead of guessing.
+  const diag = [
+    'typeof window.Capacitor: ' + typeof window.Capacitor,
+    'typeof window.electronAPI: ' + typeof window.electronAPI,
+    'window.platform.isMobile: ' + (window.platform && window.platform.isMobile),
+    'window.platform.isElectron: ' + (window.platform && window.platform.isElectron),
+  ].join('\n');
+  alert('[arcade-debug]\n' + diag + '\n---\n' + (msgs.length ? msgs.join('\n') : '(no messages captured after 4s)'));
 }, 4000);
 
 // ── Init ───────────────────────────────────────────────────────────────────
