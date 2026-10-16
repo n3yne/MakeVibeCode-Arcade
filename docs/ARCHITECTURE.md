@@ -79,7 +79,7 @@ A Capacitor WebView is the app, so a second site needs a separate native view. `
 - The overlay sits **behind** the Capacitor WebView, below the status bar and above a 56 pt/dp tab bar.
 - The Capacitor WebView is made transparent, and `#arcade-container` is a transparent hole in `renderer/styles.css`, so the overlay shows through.
 - The Editor and AI Chat tabs show or hide the Capacitor layer to switch views.
-- On iOS the plugin needs the `-ObjC` linker flag so the `CAP_PLUGIN` registration is not stripped. `.github/scripts/add_ios_plugin.rb` adds the sources and flag to the generated Xcode project.
+- On iOS, Capacitor 8 registers only the plugin classes listed in the bundled `capacitor.config.json`'s `packageClassList`, which `cap sync` fills from npm-installed plugins alone. `.github/scripts/add_ios_plugin.rb` adds the plugin sources to the generated Xcode project and appends `MakeCodeBridgePlugin` to that list; without it, `Capacitor.Plugins.MakeCodeBridge` is `undefined` and `platform.js` fails to initialise.
 
 Plugin API details: [native-plugins/README.md](../native-plugins/README.md).
 

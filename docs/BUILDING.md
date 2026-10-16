@@ -41,7 +41,7 @@ Create `android/local.properties` with `sdk.dir=/path/to/Android/sdk` if Gradle 
 
 1. Patches `AppDelegate.swift` to make the bridge WebView transparent.
 2. Copies `native-plugins/ios/*` into `ios/App/App/Plugins/MakeCodeBridge/`.
-3. Runs `.github/scripts/add_ios_plugin.rb` to add them to the Xcode project (with the `-ObjC` linker flag).
+3. Runs `.github/scripts/add_ios_plugin.rb` to add them to the Xcode project and list `MakeCodeBridgePlugin` in `ios/App/App/capacitor.config.json`'s `packageClassList`, which Capacitor needs to register it.
 4. Builds for the simulator, and, if signing secrets exist, archives, exports and optionally uploads to TestFlight.
 
 To build locally, repeat those steps by hand on a Mac. The workflow file is the reference.
