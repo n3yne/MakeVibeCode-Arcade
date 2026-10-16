@@ -179,6 +179,15 @@ setTimeout(() => {
     'window.platform.isMobile: ' + (window.platform && window.platform.isMobile),
     'window.platform.isElectron: ' + (window.platform && window.platform.isElectron),
     'platform.js init error: ' + (window.__platformInitError || '(none)'),
+    'Capacitor.Plugins keys: ' + (window.Capacitor && window.Capacitor.Plugins
+      ? Object.keys(window.Capacitor.Plugins).join(', ') || '(empty object)'
+      : '(Capacitor.Plugins missing)'),
+    'Capacitor.isNativePlatform(): ' + (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
+      ? window.Capacitor.isNativePlatform()
+      : '(n/a)'),
+    'Capacitor.getPlatform(): ' + (window.Capacitor && typeof window.Capacitor.getPlatform === 'function'
+      ? window.Capacitor.getPlatform()
+      : '(n/a)'),
   ].join('\n');
   alert('[arcade-debug]\n' + diag + '\n---\n' + (msgs.length ? msgs.join('\n') : '(no messages captured after 4s)'));
 }, 4000);

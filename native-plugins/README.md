@@ -18,12 +18,14 @@ After running `npx cap add ios`:
 
 2. In Xcode, add both files to the `App` target (drag into the Project Navigator).
 
-3. In `ios/App/App/AppDelegate.swift`, register the plugin:
-   ```swift
-   // In application(_:didFinishLaunchingWithOptions:)
-   // No extra registration needed — CAP_PLUGIN macro in .m file handles it
-   ```
-   The `CAP_PLUGIN` macro in the `.m` file automatically registers the plugin.
+3. Add `"MakeCodeBridgePlugin"` to the `packageClassList` array in
+   `ios/App/App/capacitor.config.json`. Capacitor 8 only registers plugin
+   classes listed there, and `npx cap sync` fills that list from npm-installed
+   plugins alone, so a hand-copied plugin is otherwise never loaded
+   (`Capacitor.Plugins.MakeCodeBridge` is `undefined` in JS). The `CAP_PLUGIN`
+   macro in the `.m` file supplies the plugin's methods but does not register
+   it. Re-check this after every `npx cap sync ios`, which rewrites the list.
+   CI does this automatically via `.github/scripts/add_ios_plugin.rb`.
 
 4. Build and run on a simulator or device.
 
