@@ -11,7 +11,23 @@
     "dist:linux": "electron-builder --linux --x64",
     "dist:all": "electron-builder -mwl"
   },
-  "keywords": [],
+  "keywords": [
+    "makecode",
+    "makecode-arcade",
+    "arcade",
+    "ai",
+    "vibe-coding",
+    "llm",
+    "education",
+    "kids",
+    "game-development",
+    "electron",
+    "capacitor",
+    "claude",
+    "gemini",
+    "openai",
+    "openrouter"
+  ],
   "author": {
     "name": "Esscey",
     "email": "886681+n3yne@users.noreply.github.com"
@@ -101,5 +117,13 @@
       "category": "Education",
       "description": "AI-powered MakeCode Arcade wrapper"
     }
+  },
+  "homepage": "https://github.com/n3yne/MakeVibeCode-Arcade#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/n3yne/MakeVibeCode-Arcade.git"
+  },
+  "bugs": {
+    "url": "https://github.com/n3yne/MakeVibeCode-Arcade/issues"
   }
 }
